@@ -470,7 +470,7 @@ const menuConfig = {
   admin: [
     { href: '/dashboard/admin', label: 'Utilisateurs', icon: Activity, tooltip: 'Tableau de bord général' },
     // { href: '/dashboard/admin/utilisateurs', label: 'Utilisateurs', icon: Users, tooltip: 'Gérer les utilisateurs' },
-    { href: '/dashboard/admin/statistiques', label: 'Statistiques', icon: BarChart3, tooltip: 'Voir les statistiques' },
+    { href: '/dashboard/stats', label: 'Statistiques', icon: BarChart3, tooltip: 'Voir les statistiques' },
   ],
 };
 
