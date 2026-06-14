@@ -38,6 +38,7 @@
     "file-saver": "^2.0.5",
     "framer-motion": "^12.23.12",
     "fs-extra": "^11.3.5",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lodash": "^4.17.21",

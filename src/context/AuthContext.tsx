@@ -1,8 +1,222 @@
 
-// app/context/AuthContext.tsx
+// // app/context/AuthContext.tsx
+// 'use client'
+
+// import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react'
+// import { supabase } from '@/lib/supabase'
+// import { useRouter } from 'next/navigation'
+
+// export type UserRole = 'promoteur' | 'technique' | 'credit' | 'admin'
+
+// export type User = {
+//   id: string
+//   email: string
+//   username: string
+//   password?: string
+//   role: UserRole
+//   genre: 'M' | 'F' | null
+//   telephone: string | null
+//   photo_profil: string | null 
+//   created_at: string
+//   updated_at: string
+// }
+
+// type AuthContextType = {
+//   user: User | null
+//   isAuthenticated: boolean
+//   login: (email: string, password: string) => Promise<{ 
+//     success: boolean
+//     error?: string
+//   }>
+//   logout: () => void
+//   updateUser: (user: User) => void
+//   loading: boolean
+// }
+
+// const AuthContext = createContext<AuthContextType | undefined>(undefined)
+// const USER_STORAGE_KEY = 'FPI-user'
+// const SESSION_DURATION = 30 * 60 * 1000
+
+// export function AuthProvider({ children }: { children: ReactNode }) {
+//   const [user, setUser] = useState<User | null>(null)
+//   const [loading, setLoading] = useState(true)
+//   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+//   const router = useRouter()
+
+//   const cleanup = () => {
+//     if (timeoutRef.current) {
+//       clearTimeout(timeoutRef.current)
+//       timeoutRef.current = null
+//     }
+//   }
+
+//   const setSessionTimeout = () => {
+//     cleanup()
+//     timeoutRef.current = setTimeout(() => {
+//       logout()
+//       router.push('/login')
+//     }, SESSION_DURATION)
+//   }
+
+//   const logout = () => {
+//     localStorage.removeItem(USER_STORAGE_KEY)
+//     setUser(null)
+//     cleanup()
+//   }
+
+//   const updateUser = (updatedUser: User) => {
+//     setUser(updatedUser)
+//     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser))
+//     setSessionTimeout()
+//   }
+
+//   const login = async (email: string, password: string) => {
+//     try {
+//       console.log('Tentative de connexion avec:', { email: email.toLowerCase().trim() })
+      
+//       const { data: userData, error: userError } = await supabase
+//         .from('users')
+//         .select('*')
+//         .eq('email', email.toLowerCase().trim())
+//         .single()
+
+//       console.log('Résultat Supabase:', { userData, userError })
+
+//       if (userError) {
+//         console.error('Erreur utilisateur:', userError)
+//         return { success: false, error: 'Email ou mot de passe incorrect. Aucun utilisateur trouvé avec cet email.' }
+//       }
+
+//       if (!userData) {
+//         return { success: false, error: 'Aucun utilisateur trouvé avec cet email.' }
+//       }
+
+//       console.log('Comparaison mot de passe:', {
+//         provided: password,
+//         stored: userData.password,
+//         match: userData.password === password
+//       })
+
+//       if (userData.password !== password) {
+//         return { success: false, error: 'Mot de passe incorrect.' }
+//       }
+
+//       const validRoles: UserRole[] = ['promoteur', 'technique', 'credit', 'admin']
+//       if (!validRoles.includes(userData.role as UserRole)) {
+//         return { success: false, error: `Rôle utilisateur invalide: ${userData.role}` }
+//       }
+
+//       const loggedUser: User = {
+//         id: userData.id,
+//         email: userData.email,
+//         username: userData.username,
+//         role: userData.role as UserRole,
+//         telephone: userData.telephone,
+//         genre: userData.genre,
+//         photo_profil: userData.photo_profil,
+//         created_at: userData.created_at,
+//         updated_at: userData.updated_at,
+//       }
+
+//       console.log('Connexion réussie:', loggedUser)
+//       setUser(loggedUser)
+//       localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(loggedUser))
+//       setSessionTimeout()
+
+//       return { success: true }
+
+//     } catch (error) {
+//       console.error('Login error complète:', error)
+//       return { success: false, error: 'Erreur de connexion au serveur. Vérifiez la console.' }
+//     }
+//   }
+
+//   useEffect(() => {
+//     const checkAuth = () => {
+//       const storedUser = localStorage.getItem(USER_STORAGE_KEY)
+      
+//       if (storedUser) {
+//         try {
+//           const userData = JSON.parse(storedUser) as User
+//           setUser(userData)
+//           setSessionTimeout()
+//         } catch (error) {
+//           console.error('Erreur parsing stored user:', error)
+//           logout()
+//         }
+//       }
+//       setLoading(false)
+//     }
+
+//     checkAuth()
+//     return () => cleanup()
+//   }, [])
+
+//   useEffect(() => {
+//     if (!user) return
+
+//     const resetTimer = () => {
+//       cleanup()
+//       timeoutRef.current = setTimeout(() => {
+//         logout()
+//         router.push('/login')
+//       }, SESSION_DURATION)
+//     }
+
+//     const events = ['mousedown', 'keydown', 'scroll', 'touchstart']
+//     events.forEach(event => window.addEventListener(event, resetTimer))
+
+//     return () => {
+//       events.forEach(event => window.removeEventListener(event, resetTimer))
+//     }
+//   }, [user, router])
+
+//   return (
+//     <AuthContext.Provider value={{ 
+//       user, 
+//       isAuthenticated: !!user, 
+//       login, 
+//       logout, 
+//       updateUser,
+//       loading 
+//     }}>
+//       {children}
+//     </AuthContext.Provider>
+//   )
+// }
+
+// export function useAuth() {
+//   const context = useContext(AuthContext)
+//   if (context === undefined) {
+//     throw new Error('useAuth must be used within an AuthProvider')
+//   }
+//   return context
+// }
+
+// export function useRole() {
+//   const { user } = useAuth()
+  
+//   return {
+//     isPromoteur: user?.role === 'promoteur',
+//     isTechnique: user?.role === 'technique',
+//     isCredit: user?.role === 'credit',
+//     isAdmin: user?.role === 'admin',
+//     role: user?.role,
+//     hasRole: (roles: UserRole | UserRole[]) => {
+//       if (!user) return false
+//       if (Array.isArray(roles)) {
+//         return roles.includes(user.role)
+//       }
+//       return user.role === roles
+//     }
+//   }
+// }
+
+
+// context/AuthContext.tsx
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -12,7 +226,6 @@ export type User = {
   id: string
   email: string
   username: string
-  password?: string
   role: UserRole
   genre: 'M' | 'F' | null
   telephone: string | null
@@ -35,7 +248,7 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const USER_STORAGE_KEY = 'FPI-user'
-const SESSION_DURATION = 30 * 60 * 1000
+const SESSION_DURATION = 30 * 60 * 1000 // 30 minutes
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -43,67 +256,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const router = useRouter()
 
-  const cleanup = () => {
+  const cleanup = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
       timeoutRef.current = null
     }
-  }
+  }, [])
 
-  const setSessionTimeout = () => {
-    cleanup()
-    timeoutRef.current = setTimeout(() => {
-      logout()
-      router.push('/login')
-    }, SESSION_DURATION)
-  }
-
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem(USER_STORAGE_KEY)
     setUser(null)
     cleanup()
-  }
+    router.push('/login')
+  }, [cleanup, router])
 
-  const updateUser = (updatedUser: User) => {
+  const setSessionTimeout = useCallback(() => {
+    cleanup()
+    timeoutRef.current = setTimeout(() => {
+      logout()
+    }, SESSION_DURATION)
+  }, [cleanup, logout])
+
+  const updateUser = useCallback((updatedUser: User) => {
     setUser(updatedUser)
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser))
     setSessionTimeout()
-  }
+  }, [setSessionTimeout])
 
   const login = async (email: string, password: string) => {
     try {
-      console.log('Tentative de connexion avec:', { email: email.toLowerCase().trim() })
-      
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('email', email.toLowerCase().trim())
         .single()
 
-      console.log('Résultat Supabase:', { userData, userError })
-
-      if (userError) {
-        console.error('Erreur utilisateur:', userError)
-        return { success: false, error: 'Email ou mot de passe incorrect. Aucun utilisateur trouvé avec cet email.' }
+      if (userError || !userData) {
+        return { 
+          success: false, 
+          error: 'Email ou mot de passe incorrect. Aucun utilisateur trouvé avec cet email.' 
+        }
       }
-
-      if (!userData) {
-        return { success: false, error: 'Aucun utilisateur trouvé avec cet email.' }
-      }
-
-      console.log('Comparaison mot de passe:', {
-        provided: password,
-        stored: userData.password,
-        match: userData.password === password
-      })
 
       if (userData.password !== password) {
-        return { success: false, error: 'Mot de passe incorrect.' }
+        return { 
+          success: false, 
+          error: 'Mot de passe incorrect.' 
+        }
       }
 
       const validRoles: UserRole[] = ['promoteur', 'technique', 'credit', 'admin']
       if (!validRoles.includes(userData.role as UserRole)) {
-        return { success: false, error: `Rôle utilisateur invalide: ${userData.role}` }
+        return { 
+          success: false, 
+          error: `Rôle utilisateur invalide: ${userData.role}` 
+        }
       }
 
       const loggedUser: User = {
@@ -118,7 +325,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updated_at: userData.updated_at,
       }
 
-      console.log('Connexion réussie:', loggedUser)
       setUser(loggedUser)
       localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(loggedUser))
       setSessionTimeout()
@@ -126,11 +332,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true }
 
     } catch (error) {
-      console.error('Login error complète:', error)
-      return { success: false, error: 'Erreur de connexion au serveur. Vérifiez la console.' }
+      console.error('Login error:', error)
+      return { 
+        success: false, 
+        error: 'Erreur de connexion au serveur. Veuillez réessayer.' 
+      }
     }
   }
 
+  // Vérification de l'authentification au chargement
   useEffect(() => {
     const checkAuth = () => {
       const storedUser = localStorage.getItem(USER_STORAGE_KEY)
@@ -150,8 +360,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     checkAuth()
     return () => cleanup()
-  }, [])
+  }, [cleanup, logout, setSessionTimeout])
 
+  // Réinitialisation du timer sur activité
   useEffect(() => {
     if (!user) return
 
@@ -159,17 +370,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cleanup()
       timeoutRef.current = setTimeout(() => {
         logout()
-        router.push('/login')
       }, SESSION_DURATION)
     }
 
-    const events = ['mousedown', 'keydown', 'scroll', 'touchstart']
-    events.forEach(event => window.addEventListener(event, resetTimer))
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'mousemove']
+    events.forEach(event => window.addEventListener(event, resetTimer, { passive: true }))
 
     return () => {
       events.forEach(event => window.removeEventListener(event, resetTimer))
     }
-  }, [user, router])
+  }, [user, cleanup, logout])
 
   return (
     <AuthContext.Provider value={{ 

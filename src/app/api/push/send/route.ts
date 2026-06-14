@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     const payload = JSON.stringify({
       title: notification.title || 'SONAS Notification',
       body: notification.body || 'Vous avez une nouvelle notification',
-      url: notification.url || '/promoteur/projets',
+      url: notification.url || '/dashboard/promoteur',
       icon: notification.icon || '/icons/icon-192x192.png',
       badge: '/icons/badge-72x72.png',
       type: notification.type || 'info',

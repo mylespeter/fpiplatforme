@@ -34,7 +34,7 @@ type Notification = {
 const menuConfig = {
   promoteur: [
     { href: '/dashboard/promoteur', label: 'Vue d\'ensemble', icon: Activity, tooltip: 'Tableau de bord général' },
-    { href: '/dashboard/promoteur/projets', label: 'Mes Projets', icon: Building2, tooltip: 'Gérer mes projets industriels' },
+    { href: '/dashboard/dashboard/promoteur', label: 'Mes Projets', icon: Building2, tooltip: 'Gérer mes projets industriels' },
     { href: '/dashboard/promoteur/demandes', label: 'Demandes', icon: FileText, tooltip: 'Suivre mes demandes' },
   ],
   technique: [
@@ -687,7 +687,7 @@ export default function SidebarNavigation() {
       {showMobileMenu && (
         <div className="md:hidden fixed inset-0 z-50">
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMobileMenu(false)} />
-          <div className="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl z-50 overflow-y-auto animate-in slide-in-from-right duration-300">
+          <div className="fixed inset-y-0 right-0 w-full max-w-sm bg-white shadow-2xl z-50 overflow-y-auto animate-in slide-in-from-right duration-300">
             {/* En-tête mobile */}
             <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 p-4">
               <div className="flex items-center justify-between">
