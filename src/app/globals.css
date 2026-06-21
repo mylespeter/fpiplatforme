@@ -175,3 +175,28 @@ body {
 
 
 
+/* Ajouter dans un fichier CSS global */
+.messages-container {
+  scroll-behavior: smooth;
+}
+
+.message-bubble {
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+/* Animation pour les nouveaux messages */
+@keyframes slideInMessage {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-enter {
+  animation: slideInMessage 0.2s ease-out;
+}

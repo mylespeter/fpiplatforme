@@ -33,9 +33,9 @@ type Notification = {
 // Définition des menus par rôle
 const menuConfig = {
   promoteur: [
-    { href: '/dashboard/promoteur', label: 'Vue d\'ensemble', icon: Activity, tooltip: 'Tableau de bord général' },
-    { href: '/dashboard/dashboard/promoteur', label: 'Mes Projets', icon: Building2, tooltip: 'Gérer mes projets industriels' },
-    { href: '/dashboard/promoteur/demandes', label: 'Demandes', icon: FileText, tooltip: 'Suivre mes demandes' },
+    { href: '/dashboard', label: 'Vue d\'ensemble', icon: Activity, tooltip: 'Tableau de bord général' },
+    { href: '/dashboard/dashboard', label: 'Mes Projets', icon: Building2, tooltip: 'Gérer mes projets industriels' },
+    { href: '/dashboard/demandes', label: 'Demandes', icon: FileText, tooltip: 'Suivre mes demandes' },
   ],
   technique: [
     { href: '/dashboard/technique', label: 'Vue d\'ensemble', icon: Activity, tooltip: 'Tableau de bord général' },

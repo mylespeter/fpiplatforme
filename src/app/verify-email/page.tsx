@@ -387,7 +387,7 @@
 //         const role = data.user.role
 //         switch (role) {
 //           case 'promoteur':
-//             router.push('/dashboard/promoteur')
+//             router.push('/dashboard')
 //             break
 //           case 'technique':
 //             router.push('/dashboard/technique')
@@ -712,7 +712,7 @@ function VerifyEmailContent() {
         const role = data.user.role
         switch (role) {
           case 'promoteur':
-            router.push('/dashboard/promoteur')
+            router.push('/dashboard')
             break
           case 'technique':
             router.push('/dashboard/technique')

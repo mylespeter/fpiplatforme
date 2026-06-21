@@ -1,26 +1,39 @@
-import type { Metadata } from "next";
-import Navigation from "@/components/Navigation";
+// app/dashboard/layout.tsx
+'use client';
 
+import Sidebar, { useSidebar } from '@/components/Navigation';
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { Loader } from '@/components/ui/Loader';
 
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, loading } = useAuth();
+  const router = useRouter();
+  const { isCollapsed } = useSidebar();
 
-export const metadata: Metadata = {
-  title: "Gestion Utilisateurs",
-  description: "Traçabilité pharmaceutique",
-};
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [loading, isAuthenticated, router]);
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+  if (loading) {
+    return <Loader fullScreen text="Chargement..." />;
+  }
+
+  if (!user) {
+    return null;
+  }
+
   return (
-    <>
-    
-    <Navigation />
-    <main>{children}</main>
-    
-    </>
-    
-       
+    <div className="min-h-screen bg-background flex">
+      <Sidebar />
+      <main className="flex-1 transition-all duration-300 min-w-0">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          {children}
+        </div>
+      </main>
+    </div>
   );
 }

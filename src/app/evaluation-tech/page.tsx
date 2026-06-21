@@ -908,519 +908,897 @@
 //   )
 // }
 
-// app/dashboard/technique/page.tsx
-'use client';
+'use client'
 
-import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
-import { 
-  BarChart3, TrendingUp, TrendingDown, PieChart,
-  FileText, CheckCircle, XCircle, Clock,
-  Loader2, ChevronDown, Users, Target, Shield,
-  AlertCircle, ClipboardCheck, ThumbsUp, ThumbsDown
-} from 'lucide-react';
-import { PieChart as RePieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/context/AuthContext'
+import { usePushNotifications } from '@/context/PushNotificationContext'
+import { supabase } from '@/lib/supabase'
+import { Loader2, FileText, Clock, CheckCircle, Lock, Shield, Archive } from 'lucide-react'
+import ServiceTechniqueHeader from './ServiceTechniqueHeader'
+import ProjetsList from './ProjetsList'
+import ProjetDetailModal from './ProjetDetailModal'
+import RapportAnalyseModal from './RapportAnalyseModal'
+import { generateRapportPDF } from '@/components/PDFGenerator';
 
-// Types
-type ProjetStats = {
-  id: number;
-  nom_projet: string;
-  montant_sollicite: number | null;
-  etape: string;
-  promoteur_nom_complet: string;
-  created_at: string;
-  technicien_id: number | null;
-  technicien_nom: string | null;
-  decision: string | null;
-  note_faisabilite: number | null;
-  note_impact: number | null;
-  note_finance: number | null;
-  note_equipe: number | null;
-  note_marche: number | null;
-  date_analyse: string | null;
-  date_decision: string | null;
-};
+// ============================================
+// LOGO
+// ============================================
+const LOGO_URL = "/logo.png"
 
-type TechnicienStat = {
-  technicien_id: number;
-  technicien_nom: string;
-  total: number;
-  analyses: number;
-  favorables: number;
-  defavorables: number;
-  reserves: number;
-  noteMoyenne: number;
-};
+// ============================================
+// FONCTION D'ENVOI DE NOTIFICATION PUSH
+// ============================================
+const envoyerNotificationPush = async (
+  userId: number | null | undefined,
+  titre: string,
+  message: string,
+  type: 'info' | 'success' | 'warning' | 'error' | 'paiement' | 'document' | 'validation' | 'decision' = 'info',
+  projetId?: number,
+  url?: string
+) => {
+  if (!userId) return false
 
-// Couleurs
-const COLORS = [
-  '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-  '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
-];
+  try {
+    const { error: dbError } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: userId.toString(),
+        type: type,
+        titre: titre,
+        message: message,
+        lien: url || null,
+        projet_id: projetId || null,
+        icone: type === 'decision' ? 'CheckCircle' : type === 'success' ? 'CheckCircle' : 'Bell',
+        est_lue: false
+      })
 
-export default function DashboardTechnique() {
-  const { user } = useAuth();
-  const [projets, setProjets] = useState<ProjetStats[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showTechnicienDetails, setShowTechnicienDetails] = useState(false);
-  const [showDecisionsDetails, setShowDecisionsDetails] = useState(false);
+    if (dbError) {
+      console.error('Erreur sauvegarde notification:', dbError)
+    }
 
+    const response = await fetch('/api/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': userId.toString()
+      },
+      body: JSON.stringify({
+        userId: userId.toString(),
+        notification: {
+          title: titre,
+          body: message,
+          url: url || '/dashboard',
+          type: type,
+          projetId: projetId,
+          requireInteraction: type === 'decision' || type === 'error',
+          vibrate: [200, 100, 200]
+        }
+      })
+    })
+
+    return response.ok
+  } catch (error) {
+    console.error('Erreur envoi notification:', error)
+    return false
+  }
+}
+
+// ============================================
+// TYPES
+// ============================================
+type ProjetATraiter = {
+  id: number
+  nom_projet: string
+  description_projet: string | null
+  montant_sollicite: number | null
+  etape: string
+  promoteur_nom_complet: string
+  promoteur_email: string | null
+  promoteur_telephone: string | null
+  promoteur_adresse: string | null
+  promoteur_province: string | null
+  promoteur_ville: string | null
+  created_at: string
+  rapport_id: number | null
+  rapport_statut: string | null
+  rapport_decision: string | null
+  nom_entite: string | null
+  numero_rccm: string | null
+  secteur_activite: string | null
+  cout_total: number | null
+  apport_personnel: number | null
+  duree_remboursement: string | null
+  banque_partenaire: string | null
+  objectifs_projet: string | null
+  localisation_projet: string | null
+  nombre_emplois: number | null
+  promoteur_id: number | null
+  technicien_id: number | null
+  technicien_nom: string | null
+}
+
+type DocumentProjet = {
+  id: number
+  type_document: string
+  chemin_fichier: string
+  nom_fichier: string | null
+}
+
+type RapportExistant = {
+  id: number
+  dossier_complet: boolean
+  documents_manquants: string | null
+  decision: string | null
+  commentaire_global: string | null
+  recommandations: string | null
+  note_faisabilite: number | null
+  note_impact: number | null
+  note_finance: number | null
+  note_equipe: number | null
+  note_marche: number | null
+  commentaire_faisabilite: string | null
+  commentaire_impact: string | null
+  commentaire_finance: string | null
+  commentaire_equipe: string | null
+  commentaire_marche: string | null
+  statut: string
+  technicien_id: number | null
+  date_consultation: string | null
+  date_verification: string | null
+  date_analyse: string | null
+  date_decision: string | null
+}
+
+// MODIFICATION: TabType simplifié à 2 onglets
+type TabType = 'a_consulter' | 'mes_consultations'
+
+// ============================================
+// LOGGER
+// ============================================
+const LOG_PREFIX = '[ServiceTech]'
+const log = {
+  info: (msg: string, data?: any) => console.log(`${LOG_PREFIX} ℹ️ ${msg}`, data !== undefined ? data : ''),
+  success: (msg: string, data?: any) => console.log(`${LOG_PREFIX} ✅ ${msg}`, data !== undefined ? data : ''),
+  error: (msg: string, data?: any) => console.error(`${LOG_PREFIX} ❌ ${msg}`, data !== undefined ? data : ''),
+  warn: (msg: string, data?: any) => console.warn(`${LOG_PREFIX} ⚠️ ${msg}`, data !== undefined ? data : ''),
+}
+
+// ============================================
+// HELPER POUR OBTENIR L'ID UTILISATEUR
+// ============================================
+const getUserId = (user: any): number | null => {
+  if (!user?.id) return null
+  const uid = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id
+  return isNaN(uid) ? null : uid
+}
+
+// ============================================
+// FONCTION DE CATÉGORISATION (simplifiée)
+// ============================================
+
+/**
+ * Catégorise un projet en 2 catégories :
+ * - 'mes_consultations' : j'ai un rapport sur ce projet
+ * - 'a_consulter' : je n'ai pas encore de rapport sur ce projet ET le projet est en attente
+ */
+const categoriserProjet = (projet: ProjetATraiter, userId: number): TabType => {
+  // Si le projet a un technicien assigné et que c'est moi
+  if (projet.technicien_id === userId) {
+    return 'mes_consultations'
+  }
+  
+  // Sinon, c'est un projet à consulter (pas encore pris, ou pris par un autre mais je peux le voir)
+  // On exclut les projets terminés de "à consulter" s'ils ne sont pas les miens
+  const isTermine = projet.etape === 'comité_crédit' || 
+                    projet.etape === 'financement_approuve' || 
+                    projet.etape === 'financement_rejete'
+  
+  if (isTermine && projet.technicien_id !== userId) {
+    // Les projets terminés qui ne sont pas les miens ne sont pas affichés du tout
+    // On les filtre côté affichage
+    return 'a_consulter' // sera filtré plus tard
+  }
+  
+  return 'a_consulter'
+}
+
+// ============================================
+// COMPOSANT PRINCIPAL
+// ============================================
+export default function ServiceTechniquePage() {
+  const { user } = useAuth()
+  const { isSubscribed } = usePushNotifications()
+  
+  const userId = getUserId(user)
+  
+  // États
+  const [projets, setProjets] = useState<ProjetATraiter[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [consultingId, setConsultingId] = useState<number | null>(null)
+  const [activeTab, setActiveTab] = useState<TabType>('a_consulter')
+  
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [selectedProjet, setSelectedProjet] = useState<ProjetATraiter | null>(null)
+  const [documents, setDocuments] = useState<DocumentProjet[]>([])
+  const [loadingDocs, setLoadingDocs] = useState(false)
+  const [rapportComplet, setRapportComplet] = useState<RapportExistant | null>(null)
+  
+  const [showRapportModal, setShowRapportModal] = useState(false)
+  const [etapeActuelle, setEtapeActuelle] = useState(1)
+  
+  const [dossierComplet, setDossierComplet] = useState<boolean | null>(null)
+  const [documentsManquants, setDocumentsManquants] = useState('')
+  
+  const [notes, setNotes] = useState<Record<string, number>>({})
+  const [commentaires, setCommentaires] = useState<Record<string, string>>({})
+  
+  const [decision, setDecision] = useState('')
+  const [commentaireGlobal, setCommentaireGlobal] = useState('')
+  const [recommandations, setRecommandations] = useState('')
+  
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  // Constantes
+  const CRITERES = [
+    { key: 'faisabilite', label: 'Faisabilité technique', icon: '🔧' },
+    { key: 'impact', label: 'Impact socio-économique', icon: '📈' },
+    { key: 'finance', label: 'Viabilité financière', icon: '💰' },
+    { key: 'equipe', label: 'Qualité de l\'équipe', icon: '👥' },
+    { key: 'marche', label: 'Potentiel du marché', icon: '🎯' }
+  ]
+
+  // ============================================
+  // CALCUL DES STATISTIQUES (2 catégories)
+  // ============================================
+  const getStats = () => {
+    if (userId === null) {
+      return { total: 0, aConsulter: 0, mesConsultations: 0 }
+    }
+    
+    let aConsulter = 0
+    let mesConsultations = 0
+    
+    projets.forEach(p => {
+      const categorie = categoriserProjet(p, userId)
+      if (categorie === 'a_consulter') {
+        // Ne compter que les projets non terminés et non pris par d'autres
+        const isTermine = p.etape === 'comité_crédit' || 
+                         p.etape === 'financement_approuve' || 
+                         p.etape === 'financement_rejete'
+        const estPrisParAutre = p.technicien_id !== null && p.technicien_id !== userId
+        
+        if (!isTermine && !estPrisParAutre) {
+          aConsulter++
+        }
+      } else if (categorie === 'mes_consultations') {
+        mesConsultations++
+      }
+    })
+    
+    return {
+      total: aConsulter + mesConsultations,
+      aConsulter,
+      mesConsultations
+    }
+  }
+
+  const stats = getStats()
+
+  // Définition des onglets (2 onglets uniquement)
+  const TABS: { id: TabType; label: string; icon: React.ReactNode; count: number; color: string; description: string }[] = [
+    { 
+      id: 'a_consulter', 
+      label: 'À Analyser', 
+      icon: <Clock className="h-4 w-4" />,
+      count: stats.aConsulter,
+      color: 'border-amber-500 text-amber-700',
+      description: 'Dossiers en attente d\'analyse'
+    },
+    { 
+      id: 'mes_consultations', 
+      label: 'Mes dossiers', 
+      icon: <FileText className="h-4 w-4" />,
+      count: stats.mesConsultations,
+      color: 'border-blue-500 text-blue-700',
+      description: 'Dossiers que je suis en train de consulter'
+    }
+  ]
+
+  // ============================================
+  // FONCTIONS UTILITAIRES
+  // ============================================
+  const formatMontant = (m: number) => 
+    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(m)
+
+  const formatDate = (d: string) => 
+    new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+
+  const getDocTypeName = (type: string) => {
+    const names: Record<string, string> = {
+      'carte_electeur': 'Carte d\'électeur',
+      'rccm': 'RCCM',
+      'id_nat': 'ID National',
+      'attestation_fiscale': 'Attestation fiscale',
+      'attestation_cnss': 'Attestation CNSS',
+      'plan_affaires': 'Plan d\'affaires',
+      'etude_faisabilite': 'Étude de faisabilité'
+    }
+    return names[type] || type
+  }
+
+  const getNoteColor = (note: number): string => {
+    if (note <= 2) return 'bg-red-500'
+    if (note === 3) return 'bg-orange-500'
+    if (note === 4) return 'bg-green-500'
+    return 'bg-emerald-500'
+  }
+
+  const calculerNoteTotale = (): number => {
+    const valeurs = CRITERES.map(c => notes[c.key] || 0)
+    const somme = valeurs.reduce((a: number, b: number) => a + b, 0)
+    const toutesRemplies = valeurs.every(n => n > 0)
+    return toutesRemplies ? somme / CRITERES.length : 0
+  }
+
+  // ============================================
+  // FILTRAGE PAR ONGLET (2 catégories)
+  // ============================================
+  const getProjetsFiltresParOnglet = (): ProjetATraiter[] => {
+    if (userId === null) return []
+    
+    // D'abord filtrer par recherche
+    let filtres = projets.filter((p: ProjetATraiter) => {
+      if (!searchTerm.trim()) return true
+      const terme = searchTerm.toLowerCase()
+      return p.nom_projet.toLowerCase().includes(terme) ||
+        p.promoteur_nom_complet.toLowerCase().includes(terme)
+    })
+    
+    // Puis filtrer par catégorie (onglet)
+    return filtres.filter(p => {
+      if (activeTab === 'mes_consultations') {
+        // Mes dossiers : je suis le technicien assigné
+        return p.technicien_id === userId
+      } else {
+        // À consulter : pas de technicien assigné ET pas terminé
+        const isTermine = p.etape === 'comité_crédit' || 
+                         p.etape === 'financement_approuve' || 
+                         p.etape === 'financement_rejete'
+        return p.technicien_id === null && !isTermine
+      }
+    })
+  }
+
+  const projetsFiltres = getProjetsFiltresParOnglet()
+
+  // ============================================
+  // FONCTIONS API
+  // ============================================
   useEffect(() => {
-    chargerProjets();
-  }, []);
+    if (userId !== null) chargerProjets()
+  }, [userId])
 
   const chargerProjets = async () => {
-    setLoading(true);
-    try {
-      const { data: projetsData, error } = await supabase
-        .from('projets_fpi')
-        .select('*')
-        .order('created_at', { ascending: false });
+    setLoading(true)
+    
+    const { data: projetsData, error: errProjets } = await supabase
+      .from('projets_fpi')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-      if (error) throw error;
+    if (errProjets) {
+      log.error('Erreur chargement projets:', errProjets)
+      setLoading(false)
+      return
+    }
 
-      // Récupérer les rapports d'analyse
-      const projetIds = (projetsData || []).map(p => p.id);
+    if (projetsData && projetsData.length > 0) {
+      const projetIds = projetsData.map((p: any) => p.id)
       
       const { data: rapports } = await supabase
         .from('rapport_analyse')
         .select('*')
-        .in('projet_id', projetIds);
+        .in('projet_id', projetIds)
 
-      // Récupérer les techniciens
-      const technicienIds = [...new Set((rapports || []).map(r => r.technicien_id).filter(Boolean))];
+      const technicienIds: number[] = (rapports || [])
+        .map((r: any) => r.technicien_id)
+        .filter((id: any) => id !== null && id !== undefined)
       
-      const { data: techniciens } = await supabase
-        .from('users')
-        .select('id, username')
-        .in('id', technicienIds as number[]);
+      let techniciensMap: Record<number, string> = {}
+      
+      if (technicienIds.length > 0) {
+        const { data: techniciens } = await supabase
+          .from('users')
+          .select('id, username')
+          .in('id', technicienIds)
+        
+        if (techniciens) {
+          techniciens.forEach((t: any) => {
+            const tId = typeof t.id === 'string' ? parseInt(t.id, 10) : t.id
+            techniciensMap[tId] = t.username || `Technicien #${tId}`
+          })
+        }
+      }
 
-      const techniciensMap: Record<number, string> = {};
-      (techniciens || []).forEach((t: any) => {
-        const tId = typeof t.id === 'string' ? parseInt(t.id, 10) : t.id;
-        techniciensMap[tId] = t.username || `Technicien #${tId}`;
-      });
-
-      const projetsMapped: ProjetStats[] = (projetsData || []).map(projet => {
-        const rapport = (rapports || []).find(r => r.projet_id === projet.id);
+      const projetsMapped: ProjetATraiter[] = projetsData.map((projet: any) => {
+        const rapport = (rapports || []).find((r: any) => r.projet_id === projet.id)
         return {
           ...projet,
+          rapport_id: rapport?.id || null,
+          rapport_statut: rapport?.statut || null,
+          rapport_decision: rapport?.decision || null,
           technicien_id: rapport?.technicien_id || null,
-          technicien_nom: rapport?.technicien_id ? techniciensMap[rapport.technicien_id] || null : null,
-          decision: rapport?.decision || null,
-          note_faisabilite: rapport?.note_faisabilite || null,
-          note_impact: rapport?.note_impact || null,
-          note_finance: rapport?.note_finance || null,
-          note_equipe: rapport?.note_equipe || null,
-          note_marche: rapport?.note_marche || null,
-          date_analyse: rapport?.date_analyse || null,
-          date_decision: rapport?.date_decision || null,
-        };
-      });
+          technicien_nom: rapport?.technicien_id ? techniciensMap[rapport.technicien_id] || null : null
+        }
+      })
+      
+      setProjets(projetsMapped)
+    } else {
+      setProjets([])
+    }
+    setLoading(false)
+  }
 
-      setProjets(projetsMapped);
-    } catch (error) {
-      console.error('Erreur chargement projets:', error);
+  const chargerDetailsProjet = async (projetId: number) => {
+    setLoadingDocs(true)
+    const { data: docs } = await supabase
+      .from('documents_fpi')
+      .select('*')
+      .eq('projet_id', projetId)
+    if (docs) setDocuments(docs)
+    
+    const { data: rapport } = await supabase
+      .from('rapport_analyse')
+      .select('*')
+      .eq('projet_id', projetId)
+      .maybeSingle()
+    
+    if (rapport) {
+      setRapportComplet(rapport as RapportExistant)
+      setNotes({
+        faisabilite: rapport.note_faisabilite || 0,
+        impact: rapport.note_impact || 0,
+        finance: rapport.note_finance || 0,
+        equipe: rapport.note_equipe || 0,
+        marche: rapport.note_marche || 0
+      })
+      setCommentaires({
+        faisabilite: rapport.commentaire_faisabilite || '',
+        impact: rapport.commentaire_impact || '',
+        finance: rapport.commentaire_finance || '',
+        equipe: rapport.commentaire_equipe || '',
+        marche: rapport.commentaire_marche || ''
+      })
+      setDecision(rapport.decision || '')
+      setCommentaireGlobal(rapport.commentaire_global || '')
+      setRecommandations(rapport.recommandations || '')
+      setDossierComplet(rapport.dossier_complet ?? null)
+      setDocumentsManquants(rapport.documents_manquants || '')
+    } else {
+      setRapportComplet(null)
+      setNotes({})
+      setCommentaires({})
+      setDecision('')
+      setCommentaireGlobal('')
+      setRecommandations('')
+      setDossierComplet(null)
+      setDocumentsManquants('')
+    }
+    setLoadingDocs(false)
+  }
+
+  const ouvrirDetail = async (projet: ProjetATraiter) => {
+    setSelectedProjet(projet)
+    setShowDetailModal(true)
+    await chargerDetailsProjet(projet.id)
+  }
+
+  const reconsulterProjet = async (projet: ProjetATraiter) => {
+    if (userId === null) return
+    
+    setConsultingId(projet.id)
+    
+    try {
+      await chargerDetailsProjet(projet.id)
+      setSelectedProjet(projet)
+      
+      const { data: rapport } = await supabase
+        .from('rapport_analyse')
+        .select('*')
+        .eq('projet_id', projet.id)
+        .maybeSingle()
+      
+      if (rapport) {
+        if (rapport.statut === 'transmis') {
+          setEtapeActuelle(4)
+        } else if (rapport.note_faisabilite && rapport.note_faisabilite > 0) {
+          setEtapeActuelle(3)
+        } else if (rapport.dossier_complet !== null) {
+          setEtapeActuelle(2)
+        } else {
+          setEtapeActuelle(1)
+        }
+        
+        setDossierComplet(rapport.dossier_complet ?? null)
+        setDocumentsManquants(rapport.documents_manquants || '')
+        setDecision(rapport.decision || '')
+        setCommentaireGlobal(rapport.commentaire_global || '')
+        setRecommandations(rapport.recommandations || '')
+      } else {
+        setEtapeActuelle(1)
+      }
+      
+      setError('')
+      setSuccess('')
+      setShowRapportModal(true)
+      
+    } catch (err: any) {
+      log.error('Erreur lors de la reconsultation:', err)
+      setError(err.message || 'Erreur lors de la reconsultation')
     } finally {
-      setLoading(false);
+      setConsultingId(null)
+    }
+  }
+
+  const peutPasserEtapeSuivante = (): boolean => {
+    if (etapeActuelle === 1) return true
+    if (etapeActuelle === 2) return dossierComplet !== null
+    if (etapeActuelle === 3) {
+      const notesManquantes = CRITERES.filter(c => !notes[c.key] || notes[c.key] <= 0)
+      return notesManquantes.length === 0
+    }
+    if (etapeActuelle === 4) return decision !== '' && commentaireGlobal.trim() !== ''
+    return false
+  }
+
+  const demarrerConsultation = async (projet: ProjetATraiter) => {
+    if (userId === null) return
+    
+    setConsultingId(projet.id)
+    
+    try {
+      if (projet.etape === 'comité_crédit') {
+        await ouvrirDetail(projet)
+        return
+      }
+      
+      const { data: existingRapport } = await supabase
+        .from('rapport_analyse')
+        .select('*')
+        .eq('projet_id', projet.id)
+        .maybeSingle()
+
+      if (projet.etape !== 'analyse_tech') {
+        await supabase
+          .from('projets_fpi')
+          .update({ etape: 'analyse_tech', updated_at: new Date().toISOString() })
+          .eq('id', projet.id)
+      }
+
+      if (!existingRapport) {
+        await supabase
+          .from('rapport_analyse')
+          .insert({
+            projet_id: projet.id,
+            technicien_id: userId,
+            date_consultation: new Date().toISOString(),
+            statut: 'analyse'
+          })
+        
+        await envoyerNotificationPush(
+          projet.promoteur_id,
+          '🔧 Analyse technique en cours',
+          `Votre projet "${projet.nom_projet}" est actuellement en analyse technique. Un technicien examine votre dossier.`,
+          'info',
+          projet.id,
+          '/dashboard'
+        )
+      }
+
+      setSelectedProjet({ ...projet, etape: 'analyse_tech', technicien_id: userId })
+      await chargerDetailsProjet(projet.id)
+      
+      if (existingRapport) {
+        if (existingRapport.statut === 'transmis') {
+          setEtapeActuelle(4)
+        } else if (existingRapport.note_faisabilite && existingRapport.note_faisabilite > 0) {
+          setEtapeActuelle(3)
+        } else if (existingRapport.dossier_complet !== null) {
+          setEtapeActuelle(2)
+        } else {
+          setEtapeActuelle(1)
+        }
+      } else {
+        setEtapeActuelle(1)
+      }
+      
+      setError('')
+      setSuccess('')
+      setShowRapportModal(true)
+      await chargerProjets()
+      
+    } catch (err: any) {
+      log.error('Erreur lors du démarrage:', err)
+      setError(err.message || 'Erreur lors du démarrage')
+    } finally {
+      setConsultingId(null)
+    }
+  }
+
+  const handleNoteChange = (critere: string, note: number) => {
+    setNotes((prev: Record<string, number>) => ({ ...prev, [critere]: note }))
+  }
+
+  const handleCommentaireChange = (critere: string, commentaire: string) => {
+    setCommentaires((prev: Record<string, string>) => ({ ...prev, [critere]: commentaire }))
+  }
+
+  const soumettreRapport = async (rapportData: {
+    projet_id?: number;
+    dossier_complet: boolean | null;
+    documents_manquants: string | null;
+    notes: Record<string, number>;
+    commentaires: Record<string, string>;
+    decision: string;
+    commentaire_global: string;
+    recommandations: string;
+  }) => {
+    if (!selectedProjet || userId === null) return
+
+    setSaving(true)
+    setError('')
+
+    try {
+      const dataToSave = {
+        projet_id: selectedProjet.id,
+        technicien_id: userId,
+        dossier_complet: rapportData.dossier_complet,
+        documents_manquants: rapportData.dossier_complet ? null : rapportData.documents_manquants,
+        date_verification: new Date().toISOString(),
+        note_faisabilite: rapportData.notes.faisabilite || null,
+        note_impact: rapportData.notes.impact || null,
+        note_finance: rapportData.notes.finance || null,
+        note_equipe: rapportData.notes.equipe || null,
+        note_marche: rapportData.notes.marche || null,
+        commentaire_faisabilite: rapportData.commentaires.faisabilite || null,
+        commentaire_impact: rapportData.commentaires.impact || null,
+        commentaire_finance: rapportData.commentaires.finance || null,
+        commentaire_equipe: rapportData.commentaires.equipe || null,
+        commentaire_marche: rapportData.commentaires.marche || null,
+        decision: rapportData.decision,
+        commentaire_global: rapportData.commentaire_global,
+        recommandations: rapportData.recommandations || null,
+        date_decision: new Date().toISOString(),
+        statut: 'transmis',
+        updated_at: new Date().toISOString()
+      }
+
+      const { data: existingRapport } = await supabase
+        .from('rapport_analyse')
+        .select('id')
+        .eq('projet_id', selectedProjet.id)
+        .maybeSingle()
+
+      if (existingRapport) {
+        const { error } = await supabase
+          .from('rapport_analyse')
+          .update(dataToSave)
+          .eq('id', existingRapport.id)
+        
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('rapport_analyse')
+          .insert(dataToSave)
+        
+        if (error) throw error
+      }
+
+      await supabase
+        .from('projets_fpi')
+        .update({ etape: 'comité_crédit', updated_at: new Date().toISOString() })
+        .eq('id', selectedProjet.id)
+
+      const decisionMessage = rapportData.decision === 'favorable' 
+        ? '✅ Votre projet a reçu un avis FAVORABLE du service technique. Il va maintenant être examiné par le comité de crédit.'
+        : rapportData.decision === 'defavorable'
+        ? '❌ Votre projet a reçu un avis DÉFAVORABLE du service technique. Veuillez consulter le rapport pour plus de détails.'
+        : '⏸️ Votre projet a reçu un avis RÉSERVÉ du service technique. Des informations complémentaires sont nécessaires.'
+
+      await envoyerNotificationPush(
+        selectedProjet.promoteur_id,
+        `📋 Décision technique - ${selectedProjet.nom_projet}`,
+        decisionMessage,
+        'decision',
+        selectedProjet.id,
+        '/dashboard'
+      )
+
+      setSuccess('✅ Rapport transmis avec succès !')
+      
+      setTimeout(() => {
+        setShowRapportModal(false)
+        chargerProjets()
+      }, 2000)
+
+    } catch (err: any) {
+      console.error('Erreur:', err)
+      setError(err.message || 'Erreur lors de la transmission')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const telechargerPDF = async () => {
+    if (!selectedProjet) return;
+    
+    const currentNotes = rapportComplet ? {
+      faisabilite: rapportComplet.note_faisabilite || 0,
+      impact: rapportComplet.note_impact || 0,
+      finance: rapportComplet.note_finance || 0,
+      equipe: rapportComplet.note_equipe || 0,
+      marche: rapportComplet.note_marche || 0
+    } : notes;
+    
+    const currentCommentaires = rapportComplet ? {
+      faisabilite: rapportComplet.commentaire_faisabilite || '',
+      impact: rapportComplet.commentaire_impact || '',
+      finance: rapportComplet.commentaire_finance || '',
+      equipe: rapportComplet.commentaire_equipe || '',
+      marche: rapportComplet.commentaire_marche || ''
+    } : commentaires;
+    
+    const currentDecision = rapportComplet?.decision || decision;
+    const currentCommentaireGlobal = rapportComplet?.commentaire_global || commentaireGlobal;
+    const currentRecommandations = rapportComplet?.recommandations || recommandations;
+    
+    try {
+      await generateRapportPDF({
+        nomProjet: selectedProjet.nom_projet,
+        promoteurNom: selectedProjet.promoteur_nom_complet,
+        montantSollicite: formatMontant(selectedProjet.montant_sollicite || 0),
+        dateSoumission: formatDate(selectedProjet.created_at),
+        notes: currentNotes,
+        commentaires: currentCommentaires,
+        decision: currentDecision,
+        commentaireGlobal: currentCommentaireGlobal,
+        recommandations: currentRecommandations,
+        logoUrl: LOGO_URL,
+      });
+      
+      log.success('PDF généré avec succès');
+    } catch (error) {
+      log.error('Erreur lors de la génération du PDF:', error);
+      setError('Erreur lors de la génération du PDF. Veuillez réessayer.');
     }
   };
-
-  // Statistiques globales
-  const totalProjets = projets.length;
-  const projetsAAnalyser = projets.filter(p => 
-    p.etape === 'soumis' || (p.etape === 'analyse_tech' && !p.technicien_id)
-  ).length;
-  const projetsEnCours = projets.filter(p => 
-    p.etape === 'analyse_tech' && p.technicien_id && !p.decision
-  ).length;
-  const projetsAnalyses = projets.filter(p => p.etape === 'comité_crédit').length;
-  const projetsApprouves = projets.filter(p => p.etape === 'financement_approuve').length;
-  const projetsRejetes = projets.filter(p => p.etape === 'financement_rejete').length;
-
-  // Statistiques des décisions
-  const decisionsFavorables = projets.filter(p => p.decision === 'favorable').length;
-  const decisionsDefavorables = projets.filter(p => p.decision === 'defavorable').length;
-  const decisionsReserves = projets.filter(p => p.decision === 'reserve').length;
-  const decisionsEnAttente = projets.filter(p => 
-    (p.etape === 'soumis' || p.etape === 'analyse_tech') && !p.decision
-  ).length;
-
-  const totalDecisions = decisionsFavorables + decisionsDefavorables + decisionsReserves;
-  
-  const tauxFavorable = totalDecisions > 0 ? ((decisionsFavorables / totalDecisions) * 100).toFixed(1) : '0';
-  const tauxDefavorable = totalDecisions > 0 ? ((decisionsDefavorables / totalDecisions) * 100).toFixed(1) : '0';
-  const tauxReserve = totalDecisions > 0 ? ((decisionsReserves / totalDecisions) * 100).toFixed(1) : '0';
-
-  // Notes moyennes
-  const noteMoyenneFaisabilite = projets
-    .filter(p => p.note_faisabilite)
-    .reduce((sum, p) => sum + (p.note_faisabilite || 0), 0) / 
-    (projets.filter(p => p.note_faisabilite).length || 1);
-  
-  const noteMoyenneGlobale = projets
-    .filter(p => p.note_faisabilite)
-    .reduce((sum, p) => {
-      const notes = [p.note_faisabilite, p.note_impact, p.note_finance, p.note_equipe, p.note_marche];
-      const notesValides = notes.filter(n => n !== null && n !== undefined);
-      return sum + (notesValides.reduce((a, b) => a + (b || 0), 0) / (notesValides.length || 1));
-    }, 0) / (projets.filter(p => p.note_faisabilite).length || 1);
-
-  // Statistiques par technicien
-  const technicienIds = [...new Set(projets.filter(p => p.technicien_id).map(p => p.technicien_id))];
-  
-  const statsParTechnicien: TechnicienStat[] = technicienIds.map(tId => {
-    const projetsTechnicien = projets.filter(p => p.technicien_id === tId);
-    const analyses = projetsTechnicien.filter(p => p.decision).length;
-    const notes = projetsTechnicien
-      .filter(p => p.note_faisabilite)
-      .map(p => {
-        const n = [p.note_faisabilite, p.note_impact, p.note_finance, p.note_equipe, p.note_marche];
-        const valid = n.filter(x => x !== null) as number[];
-        return valid.reduce((a, b) => a + b, 0) / (valid.length || 1);
-      });
-    
-    return {
-      technicien_id: tId as number,
-      technicien_nom: projetsTechnicien[0]?.technicien_nom || `Technicien #${tId}`,
-      total: projetsTechnicien.length,
-      analyses,
-      favorables: projetsTechnicien.filter(p => p.decision === 'favorable').length,
-      defavorables: projetsTechnicien.filter(p => p.decision === 'defavorable').length,
-      reserves: projetsTechnicien.filter(p => p.decision === 'reserve').length,
-      noteMoyenne: notes.length > 0 ? notes.reduce((a, b) => a + b, 0) / notes.length : 0,
-    };
-  }).sort((a, b) => b.total - a.total);
-
-  // Données pour les Donuts
-  const donutStatutData = [
-    { name: 'À analyser', value: projetsAAnalyser, color: '#F59E0B' },
-    { name: 'En cours', value: projetsEnCours, color: '#8B5CF6' },
-    { name: 'Analysés', value: projetsAnalyses, color: '#3B82F6' },
-    { name: 'Approuvés', value: projetsApprouves, color: '#10B981' },
-    { name: 'Rejetés', value: projetsRejetes, color: '#EF4444' },
-  ].filter(item => item.value > 0);
-
-  const donutDecisionData = [
-    { name: 'Favorable', value: decisionsFavorables, color: '#10B981' },
-    { name: 'Défavorable', value: decisionsDefavorables, color: '#EF4444' },
-    { name: 'Réservé', value: decisionsReserves, color: '#F59E0B' },
-  ].filter(item => item.value > 0);
-
-  const donutTechnicienData = statsParTechnicien.slice(0, 10).map((stat, index) => ({
-    name: stat.technicien_nom,
-    value: stat.total,
-    color: COLORS[index % COLORS.length],
-  }));
-
-  const formatMontant = (m: number): string => 
-    new Intl.NumberFormat('fr-FR', { 
-      style: 'currency', 
-      currency: 'USD', 
-      notation: 'compact',
-      maximumFractionDigits: 1 
-    }).format(m);
-
-  const formatDate = (d: string) => 
-    new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
-
-  const renderCustomLabel = useCallback(({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: any) => {
-    const RADIAN = Math.PI / 180;
-    const radius = outerRadius + 25;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-    if (percent < 0.05) return null;
-
-    return (
-      <text 
-        x={x} 
-        y={y} 
-        fill="#4B5563"
-        textAnchor={x > cx ? 'start' : 'end'} 
-        dominantBaseline="central"
-        fontSize={11}
-        fontWeight={500}
-      >
-        {`${name} (${(percent * 100).toFixed(0)}%)`}
-      </text>
-    );
-  }, []);
-
-  const CustomTooltip = useCallback(({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white p-3 rounded-lg shadow-lg border">
-          <p className="text-sm font-semibold text-gray-800">{data.name}</p>
-          <p className="text-sm text-gray-600">
-            <span className="font-medium">{data.value}</span> projets
-          </p>
-        </div>
-      );
-    }
-    return null;
-  }, []);
-
-  const DonutChart = ({ data, title, icon, colors }: { 
-    data: { name: string; value: number; color: string }[]; 
-    title: string; 
-    icon: React.ReactNode;
-    colors?: string[];
-  }) => (
-    <div className="bg-white rounded-xl border p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2">
-        {icon}
-        {title}
-      </h3>
-      <ResponsiveContainer width="100%" height={350}>
-        <RePieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={70}
-            outerRadius={120}
-            paddingAngle={3}
-            dataKey="value"
-            label={renderCustomLabel}
-            isAnimationActive={false}
-            stroke="none"
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={colors ? colors[index % colors.length] : entry.color} />
-            ))}
-          </Pie>
-          <Tooltip content={<CustomTooltip />} />
-          <Legend 
-            verticalAlign="bottom" 
-            height={36}
-            formatter={(value: string) => <span className="text-sm text-gray-600">{value}</span>}
-          />
-        </RePieChart>
-      </ResponsiveContainer>
-    </div>
-  );
 
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-gray-500">Chargement des statistiques...</p>
-        </div>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
-    );
+    )
   }
 
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <BarChart3 className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tableau de bord technique</h1>
-          <p className="text-sm text-gray-500">Vue d'ensemble des analyses techniques</p>
-        </div>
-      </div>
-
-      {/* KPIs Principaux */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-5 border hover:shadow-md transition-shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <FileText className="h-5 w-5 text-blue-600" />
+    <div className="h-screen overflow-auto flex flex-col bg-gray-50">
+      <ServiceTechniqueHeader 
+        projetsCount={stats.total}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        statsTechnicien={{
+          totalProjets: stats.total,
+          projetsConsultes: stats.mesConsultations,
+          projetsAConsulter: stats.aConsulter,
+          projetsTransmis: projets.filter(p => p.etape === 'comité_crédit' && p.technicien_id === userId).length,
+          projetsPrisParAutres: 0 // N'est plus pertinent
+        }}
+        technicienNom={user?.username || 'Technicien'}
+      />
+      
+      {/* ONGLETS - 2 onglets uniquement */}
+      <div className="flex-shrink-0 bg-white border-b px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex gap-1">
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+                    isActive
+                      ? `${tab.color} border-current bg-gray-50/50`
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                  title={tab.description}
+                >
+                  <span className={`${isActive ? '' : 'text-gray-400'}`}>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                  <span className={`ml-1.5 px-2 py-0.5 rounded-full text-xs font-bold ${
+                    isActive
+                      ? 'bg-current/10'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              )
+            })}
+            
+            {/* Indicateur du total */}
+            <div className="ml-auto flex items-center text-xs text-gray-400 px-3">
+              Total : <span className="font-semibold text-gray-500 ml-1">{stats.total}</span>
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-800">{totalProjets}</p>
-          <p className="text-xs text-gray-500">Total projets</p>
         </div>
-
-        <div className="bg-white rounded-xl p-5 border hover:shadow-md transition-shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-amber-50 rounded-lg">
-              <Clock className="h-5 w-5 text-amber-600" />
+      </div>
+      
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="max-w-6xl mx-auto">
+          {projetsFiltres.length === 0 && (
+            <div className="text-center py-16 bg-white rounded-xl">
+              <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-gray-500">
+                {searchTerm 
+                  ? `Aucun projet ne correspond à "${searchTerm}"`
+                  : activeTab === 'mes_consultations' 
+                    ? 'Vous n\'avez pas encore de dossier en cours'
+                    : 'Aucun dossier à consulter'}
+              </p>
             </div>
-          </div>
-          <p className="text-2xl font-bold text-amber-600">{projetsAAnalyser}</p>
-          <p className="text-xs text-gray-500">À analyser</p>
-        </div>
-
-        <div className="bg-white rounded-xl p-5 border hover:shadow-md transition-shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-purple-50 rounded-lg">
-              <Shield className="h-5 w-5 text-purple-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-purple-600">{projetsEnCours}</p>
-          <p className="text-xs text-gray-500">En cours d'analyse</p>
-        </div>
-
-        <div className="bg-white rounded-xl p-5 border hover:shadow-md transition-shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-green-50 rounded-lg">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-green-600">{projetsAnalyses}</p>
-          <p className="text-xs text-gray-500">Analysés</p>
+          )}
+          
+          <ProjetsList 
+            projets={projetsFiltres}
+            onViewDetail={ouvrirDetail}
+            onStartConsultation={demarrerConsultation}
+            onReconsulter={reconsulterProjet} 
+            formatDate={formatDate}
+            formatMontant={formatMontant}
+            consultingId={consultingId}
+            currentUserId={userId}
+            activeTab={activeTab}
+          />
         </div>
       </div>
-
-      {/* Taux de décision */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-4 border">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">Taux favorable</span>
-            <ThumbsUp className="h-4 w-4 text-green-500" />
-          </div>
-          <p className="text-2xl font-bold text-green-600">{tauxFavorable}%</p>
-          <div className="mt-2 w-full bg-gray-100 rounded-full h-1.5">
-            <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${tauxFavorable}%` }}></div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 border">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">Taux défavorable</span>
-            <ThumbsDown className="h-4 w-4 text-red-500" />
-          </div>
-          <p className="text-2xl font-bold text-red-600">{tauxDefavorable}%</p>
-          <div className="mt-2 w-full bg-gray-100 rounded-full h-1.5">
-            <div className="bg-red-500 h-1.5 rounded-full" style={{ width: `${tauxDefavorable}%` }}></div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 border">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">Taux réservé</span>
-            <AlertCircle className="h-4 w-4 text-amber-500" />
-          </div>
-          <p className="text-2xl font-bold text-amber-600">{tauxReserve}%</p>
-          <div className="mt-2 w-full bg-gray-100 rounded-full h-1.5">
-            <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: `${tauxReserve}%` }}></div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 border">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">Note moyenne</span>
-            <Target className="h-4 w-4 text-indigo-500" />
-          </div>
-          <p className="text-2xl font-bold text-indigo-600">{noteMoyenneGlobale.toFixed(1)}/5</p>
-          <div className="mt-2 w-full bg-gray-100 rounded-full h-1.5">
-            <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: `${(noteMoyenneGlobale / 5) * 100}%` }}></div>
-          </div>
-        </div>
-      </div>
-
-      {/* GRAPHIQUES DONUT */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <DonutChart 
-          data={donutStatutData}
-          title="Répartition par Statut"
-          icon={<PieChart className="h-5 w-5 text-primary" />}
-        />
-        
-        <DonutChart 
-          data={donutDecisionData}
-          title="Décisions d'analyse"
-          icon={<ClipboardCheck className="h-5 w-5 text-primary" />}
-        />
-        
-        <DonutChart 
-          data={donutTechnicienData}
-          title="Projets par Technicien (Top 10)"
-          icon={<Users className="h-5 w-5 text-primary" />}
-          colors={COLORS}
-        />
-      </div>
-
-      {/* Tableau détaillé des techniciens */}
-      <div className="bg-white rounded-xl border">
-        <div className="p-5 border-b">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              Performance par Technicien
-            </h2>
-            <button
-              onClick={() => setShowTechnicienDetails(!showTechnicienDetails)}
-              className="text-sm text-primary hover:underline flex items-center gap-1"
-            >
-              {showTechnicienDetails ? 'Masquer' : 'Afficher tout'}
-              <ChevronDown className={`h-4 w-4 transition-transform ${showTechnicienDetails ? 'rotate-180' : ''}`} />
-            </button>
-          </div>
-        </div>
-        <div className="p-5">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 font-medium text-gray-600">Technicien</th>
-                  <th className="text-center py-3 font-medium text-gray-600">Total</th>
-                  <th className="text-center py-3 font-medium text-gray-600">Analysés</th>
-                  <th className="text-center py-3 font-medium text-gray-600">Favorable</th>
-                  <th className="text-center py-3 font-medium text-gray-600">Défavorable</th>
-                  <th className="text-center py-3 font-medium text-gray-600">Réservé</th>
-                  <th className="text-right py-3 font-medium text-gray-600">Note moy.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(showTechnicienDetails ? statsParTechnicien : statsParTechnicien.slice(0, 5)).map((stat) => (
-                  <tr key={stat.technicien_id} className="border-b hover:bg-gray-50 transition-colors">
-                    <td className="py-3 font-medium text-gray-800">{stat.technicien_nom}</td>
-                    <td className="text-center py-3">{stat.total}</td>
-                    <td className="text-center py-3">
-                      <span className="text-blue-600 font-medium">{stat.analyses}</span>
-                    </td>
-                    <td className="text-center py-3">
-                      <span className="text-green-600 font-medium">{stat.favorables}</span>
-                    </td>
-                    <td className="text-center py-3">
-                      <span className="text-red-600 font-medium">{stat.defavorables}</span>
-                    </td>
-                    <td className="text-center py-3">
-                      <span className="text-amber-600 font-medium">{stat.reserves}</span>
-                    </td>
-                    <td className="text-right py-3">
-                      <span className={`font-medium ${
-                        stat.noteMoyenne >= 4 ? 'text-green-600' : 
-                        stat.noteMoyenne >= 3 ? 'text-amber-600' : 'text-red-600'
-                      }`}>
-                        {stat.noteMoyenne.toFixed(1)}/5
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* Guide d'analyse */}
-      <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-100">
-        <h3 className="font-semibold text-gray-900 mb-2">Guide d'analyse technique</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
-          <div className="flex items-start gap-3">
-            <span className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-600 flex-shrink-0 mt-0.5">1</span>
-            <p>Sélectionnez un projet dans "À analyser" pour commencer l'évaluation</p>
-          </div>
-          <div className="flex items-start gap-3">
-            <span className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-600 flex-shrink-0 mt-0.5">2</span>
-            <p>Vérifiez les documents et notez chaque critère d'analyse</p>
-          </div>
-          <div className="flex items-start gap-3">
-            <span className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-600 flex-shrink-0 mt-0.5">3</span>
-            <p>Soumettez votre rapport avec une décision motivée</p>
-          </div>
-        </div>
-      </div>
+      
+      <ProjetDetailModal 
+        projet={selectedProjet}
+        documents={documents}
+        rapportComplet={rapportComplet}
+        notes={notes}
+        isLoading={loadingDocs}
+        isOpen={showDetailModal}
+        onClose={() => setShowDetailModal(false)}
+        onStartRapport={() => {
+          setShowDetailModal(false)
+          setTimeout(() => {
+            if (selectedProjet) demarrerConsultation(selectedProjet)
+          }, 200)
+        }}
+        onDownloadPDF={telechargerPDF}
+        formatDate={formatDate}
+        formatMontant={formatMontant}
+        getDocTypeName={getDocTypeName}
+        calculerNoteTotale={calculerNoteTotale}
+      />
+      
+      <RapportAnalyseModal 
+        projet={selectedProjet}
+        documents={documents}
+        rapportComplet={rapportComplet}
+        isOpen={showRapportModal}
+        onClose={() => setShowRapportModal(false)}
+        onSubmit={soumettreRapport}
+        formatMontant={formatMontant}
+        getDocTypeName={getDocTypeName}
+      />
     </div>
-  );
+  )
 }

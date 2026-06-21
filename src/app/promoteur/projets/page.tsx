@@ -180,7 +180,7 @@ export default function PromoteurProjetsPage() {
             notification: {
               title: titre,
               body: message,
-              url: url || '/dashboard/promoteur',
+              url: url || '/dashboard',
               type: type,
               projetId: projetId,
               requireInteraction: type === 'paiement' || type === 'error',
@@ -538,7 +538,7 @@ export default function PromoteurProjetsPage() {
         `Votre paiement de $${FRAIS_DOSSIER} USD pour "${selectedProjet.titre}" a été effectué avec succès. Réf: ${referencePaiement}`,
         'paiement',
         selectedProjet.id,
-        '/dashboard/promoteur',
+        '/dashboard',
         'CheckCircle'
       )
       

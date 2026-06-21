@@ -12,7 +12,7 @@ self.addEventListener('push', function(event) {
     badge: '/icons/badge-72x72.png',
     vibrate: [200, 100, 200],
     data: {
-      url: '/dashboard/promoteur'
+      url: '/dashboard'
     },
     requireInteraction: false,
     tag: 'FPI-notification'
@@ -63,7 +63,7 @@ self.addEventListener('notificationclick', function(event) {
   console.log('👆 Notification cliquée:', event);
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || '/dashboard/promoteur';
+  const urlToOpen = event.notification.data?.url || '/dashboard';
   const notificationId = event.notification.data?.notificationId;
 
   event.waitUntil(
