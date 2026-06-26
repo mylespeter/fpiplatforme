@@ -1,122 +1,8 @@
-// // lib/email.ts
-// import nodemailer from 'nodemailer'
-
-// // Log la configuration au démarrage
-// console.log('📧 Configuration email:', {
-//   host: process.env.SMTP_HOST || 'smtp.gmail.com',
-//   port: process.env.SMTP_PORT || '587',
-//   user: process.env.SMTP_USER ? `${process.env.SMTP_USER.substring(0, 5)}...` : 'NON DÉFINI',
-//   pass: process.env.SMTP_PASS ? '***défini***' : 'NON DÉFINI'
-// })
-
-// const transporter = nodemailer.createTransport({
-//   host: process.env.SMTP_HOST || 'smtp.gmail.com',
-//   port: Number(process.env.SMTP_PORT) || 587,
-//   secure: false,
-//   auth: {
-//     user: process.env.SMTP_USER,
-//     pass: process.env.SMTP_PASS
-//   },
-//   logger: true,
-//   debug: true,
-//   connectionTimeout: 10000,
-//   greetingTimeout: 10000,
-//   socketTimeout: 15000
-// })
-
-// // Vérifier la connexion au démarrage
-// transporter.verify(function (error, success) {
-//   if (error) {
-//     console.error('❌ Erreur de connexion SMTP:', error)
-//   } else {
-//     console.log('✅ Serveur SMTP prêt à envoyer des emails')
-//   }
-// })
-
-// export async function sendVerificationCode(to: string, code: string, username: string) {
-//   console.log('📧 ========== ENVOI CODE DE VÉRIFICATION ==========')
-//   console.log('📧 À:', to)
-//   console.log('📧 Utilisateur:', username)
-//   console.log('📧 Code:', code)
-  
-//   const html = `
-//     <!DOCTYPE html>
-//     <html>
-//       <head>
-//         <meta charset="utf-8">
-//         <style>
-//           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-//           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-//           .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-//           .header h1 { margin: 0; font-size: 24px; }
-//           .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e0e0e0; }
-//           .code-box { background: white; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0; border: 2px dashed #667eea; }
-//           .code-box span { font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #667eea; }
-//           .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
-//           .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
-//         </style>
-//       </head>
-//       <body>
-//         <div class="container">
-//           <div class="header">
-//             <h1>🏗️ FPI Platform</h1>
-//             <p>Vérification de votre compte Promoteur</p>
-//           </div>
-//           <div class="content">
-//             <h2>Bonjour ${username} !</h2>
-//             <p>Voici votre code de vérification pour finaliser votre inscription :</p>
-            
-//             <div class="code-box">
-//               <span>${code}</span>
-//             </div>
-            
-//             <div class="warning">
-//               <strong>⚠️ Important :</strong>
-//               <ul>
-//                 <li>Ce code expire dans <strong>15 minutes</strong></li>
-//                 <li>Ne partagez ce code avec personne</li>
-//               </ul>
-//             </div>
-            
-//             <p>Cordialement,<br><strong>L'équipe FPI Platform</strong></p>
-//           </div>
-//           <div class="footer">
-//             <p>© ${new Date().getFullYear()} FPI Platform. Tous droits réservés.</p>
-//           </div>
-//         </div>
-//       </body>
-//     </html>
-//   `
-
-//   try {
-//     const info = await transporter.sendMail({
-//       from: `"FPI Platform" <${process.env.SMTP_USER}>`,
-//       to,
-//       subject: 'Code de vérification - FPI Platform',
-//       html
-//     })
-    
-//     console.log('✅ Email envoyé avec succès!')
-//     console.log('✅ Message ID:', info.messageId)
-//     return { success: true, messageId: info.messageId }
-    
-//   } catch (error: any) {
-//     console.error('❌ Erreur envoi email:', error.message)
-//     return { success: false, error: error.message }
-//   }
-// }
-
-// lib/email.ts
+// src/app/api/send-decision-email/route.ts
+import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 
-// Log la configuration au démarrage
-console.log('📧 Configuration email:', {
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: process.env.SMTP_PORT || '587',
-  user: process.env.SMTP_USER ? `${process.env.SMTP_USER.substring(0, 5)}...` : 'NON DÉFINI',
-  pass: process.env.SMTP_PASS ? '***défini***' : 'NON DÉFINI'
-})
-
+// Configuration du transporteur (côté serveur uniquement)
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: Number(process.env.SMTP_PORT) || 587,
@@ -124,24 +10,9 @@ const transporter = nodemailer.createTransport({
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS
-  },
-  logger: true,
-  debug: true,
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000
-})
-
-// Vérifier la connexion au démarrage
-transporter.verify(function (error, success) {
-  if (error) {
-    console.error('❌ Erreur de connexion SMTP:', error)
-  } else {
-    console.log('✅ Serveur SMTP prêt à envoyer des emails')
   }
 })
 
-// Formatage de montant pour les emails
 function formatMontant(montant: number): string {
   return new Intl.NumberFormat('fr-FR', { 
     style: 'currency', 
@@ -150,32 +21,9 @@ function formatMontant(montant: number): string {
   }).format(montant)
 }
 
-// Formatage de date pour les emails
-function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString('fr-FR', { 
-    day: 'numeric', 
-    month: 'long', 
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-// ==================== EMAIL D'APPROBATION ====================
-export async function sendApprobationEmail(
-  to: string, 
-  nomProjet: string, 
-  nomPromoteur: string, 
-  montantApprouve: number,
-  commentaireComite?: string,
-  conditions?: string
-) {
-  console.log('📧 ========== ENVOI EMAIL APPROBATION ==========')
-  console.log('📧 À:', to)
-  console.log('📧 Projet:', nomProjet)
-  console.log('📧 Montant approuvé:', formatMontant(montantApprouve))
-  
-  const html = `
+// Template email approbation
+function getApprobationEmail(nomPromoteur: string, nomProjet: string, montantApprouve: number, commentaireComite?: string, conditions?: string) {
+  return `
     <!DOCTYPE html>
     <html>
       <head>
@@ -246,37 +94,11 @@ export async function sendApprobationEmail(
       </body>
     </html>
   `
-
-  try {
-    const info = await transporter.sendMail({
-      from: `"FPI Platform" <${process.env.SMTP_USER}>`,
-      to,
-      subject: `✅ Projet approuvé : ${nomProjet}`,
-      html
-    })
-    
-    console.log('✅ Email d\'approbation envoyé avec succès!')
-    console.log('✅ Message ID:', info.messageId)
-    return { success: true, messageId: info.messageId }
-    
-  } catch (error: any) {
-    console.error('❌ Erreur envoi email approbation:', error.message)
-    return { success: false, error: error.message }
-  }
 }
 
-// ==================== EMAIL DE REJET ====================
-export async function sendRejetEmail(
-  to: string, 
-  nomProjet: string, 
-  nomPromoteur: string, 
-  commentaireComite?: string
-) {
-  console.log('📧 ========== ENVOI EMAIL REJET ==========')
-  console.log('📧 À:', to)
-  console.log('📧 Projet:', nomProjet)
-  
-  const html = `
+// Template email rejet
+function getRejetEmail(nomPromoteur: string, nomProjet: string, commentaireComite?: string) {
+  return `
     <!DOCTYPE html>
     <html>
       <head>
@@ -334,38 +156,11 @@ export async function sendRejetEmail(
       </body>
     </html>
   `
-
-  try {
-    const info = await transporter.sendMail({
-      from: `"FPI Platform" <${process.env.SMTP_USER}>`,
-      to,
-      subject: `📋 Décision concernant votre projet : ${nomProjet}`,
-      html
-    })
-    
-    console.log('✅ Email de rejet envoyé avec succès!')
-    console.log('✅ Message ID:', info.messageId)
-    return { success: true, messageId: info.messageId }
-    
-  } catch (error: any) {
-    console.error('❌ Erreur envoi email rejet:', error.message)
-    return { success: false, error: error.message }
-  }
 }
 
-// ==================== EMAIL D'AJOURNEMENT ====================
-export async function sendAjournementEmail(
-  to: string, 
-  nomProjet: string, 
-  nomPromoteur: string, 
-  commentaireComite?: string,
-  conditions?: string
-) {
-  console.log('📧 ========== ENVOI EMAIL AJOURNEMENT ==========')
-  console.log('📧 À:', to)
-  console.log('📧 Projet:', nomProjet)
-  
-  const html = `
+// Template email ajournement
+function getAjournementEmail(nomPromoteur: string, nomProjet: string, commentaireComite?: string, conditions?: string) {
+  return `
     <!DOCTYPE html>
     <html>
       <head>
@@ -432,21 +227,70 @@ export async function sendAjournementEmail(
       </body>
     </html>
   `
+}
 
+export async function POST(request: NextRequest) {
   try {
+    const body = await request.json()
+    const { 
+      decision, 
+      email, 
+      nomPromoteur, 
+      nomProjet, 
+      montantApprouve, 
+      commentaireComite, 
+      conditions 
+    } = body
+
+    if (!email || !nomPromoteur || !nomProjet || !decision) {
+      return NextResponse.json(
+        { success: false, error: 'Données manquantes' },
+        { status: 400 }
+      )
+    }
+
+    let subject = ''
+    let html = ''
+
+    switch (decision) {
+      case 'favorable':
+        subject = `✅ Projet approuvé : ${nomProjet}`
+        html = getApprobationEmail(nomPromoteur, nomProjet, montantApprouve || 0, commentaireComite, conditions)
+        break
+      case 'defavorable':
+        subject = `📋 Décision concernant votre projet : ${nomProjet}`
+        html = getRejetEmail(nomPromoteur, nomProjet, commentaireComite)
+        break
+      case 'reserve':
+        subject = `⏸️ Projet ajourné : ${nomProjet}`
+        html = getAjournementEmail(nomPromoteur, nomProjet, commentaireComite, conditions)
+        break
+      default:
+        return NextResponse.json(
+          { success: false, error: 'Décision invalide' },
+          { status: 400 }
+        )
+    }
+
     const info = await transporter.sendMail({
       from: `"FPI Platform" <${process.env.SMTP_USER}>`,
-      to,
-      subject: `⏸️ Projet ajourné : ${nomProjet}`,
+      to: email,
+      subject,
       html
     })
-    
-    console.log('✅ Email d\'ajournement envoyé avec succès!')
-    console.log('✅ Message ID:', info.messageId)
-    return { success: true, messageId: info.messageId }
-    
+
+    console.log('✅ Email envoyé avec succès:', info.messageId)
+
+    return NextResponse.json({ 
+      success: true, 
+      messageId: info.messageId 
+    })
+
   } catch (error: any) {
-    console.error('❌ Erreur envoi email ajournement:', error.message)
-    return { success: false, error: error.message }
+    console.error('❌ Erreur envoi email:', error)
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    )
   }
 }
