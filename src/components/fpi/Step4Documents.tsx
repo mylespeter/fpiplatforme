@@ -3,7 +3,7 @@
 // 'use client'
 
 // import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-// import { FileText, CheckCircle, Upload, AlertCircle, Eye, Trash2, Loader2, Sparkles, ShieldAlert, ShieldCheck } from 'lucide-react'
+// import { FileText, CheckCircle, Upload, AlertCircle, Eye, Trash2, ShieldAlert, ShieldCheck } from 'lucide-react'
 // import { DocumentsFPI } from '@/types/fpi'
 // import { 
 //   validateDocumentFile, 
@@ -75,7 +75,6 @@
 //   onChange: (documents: DocumentsFPI) => void
 //   onVerificationChange?: (resultats: Record<string, VerificationResult | null>) => void
 //   onCroisementValidityChange?: (isValid: boolean, details: string[]) => void
-//   // NOUVEAU : Reçoit les résultats de vérification du parent
 //   resultatsExternes?: Record<string, VerificationResult | null>
 // }
 
@@ -187,7 +186,6 @@
 //   sourceDoc: string
 //   cibleDoc: string
 //   estMatch: boolean | null
-//   detailCarteElecteur?: { nom: string; postnom: string; prenom: string }
 // }
 
 // export default function Step4Documents({ 
@@ -200,7 +198,6 @@
 //   const [previewDoc, setPreviewDoc] = useState<{ key: keyof DocumentsFPI; url: string } | null>(null)
 //   const [errors, setErrors] = useState<Record<string, string>>({})
 
-//   // Utiliser les résultats externes (du parent) ou un état local vide
 //   const resultatsVerification = resultatsExternes || {}
 
 //   const handleFileChange = (key: keyof DocumentsFPI, file: File | undefined) => {
@@ -245,24 +242,13 @@
 //         estMatch = croisement.comparer(valeurSource, valeurCible)
 //       }
       
-//       let detailCarteElecteur: { nom: string; postnom: string; prenom: string } | undefined
-//       if (croisement.champ === "Identité Complète") {
-//         const resultatCE = resultatsVerification['carte_electeur']
-//         detailCarteElecteur = {
-//           nom: getChampValeur(resultatCE, 'nom'),
-//           postnom: getChampValeur(resultatCE, 'postnom'),
-//           prenom: getChampValeur(resultatCE, 'prenom')
-//         }
-//       }
-      
 //       return {
 //         champ: croisement.champ,
 //         valeurSource,
 //         valeurCible,
 //         sourceDoc: croisement.docSource,
 //         cibleDoc: croisement.docCible,
-//         estMatch,
-//         detailCarteElecteur
+//         estMatch
 //       }
 //     })
 //   }, [resultatsVerification])
@@ -271,52 +257,27 @@
 //     const matches = getMatchStatuses()
 //     const details: string[] = []
     
-//     const docsRequis = ['carte_electeur', 'rccm', 'id_nat', 'attestation_fiscale', 'attestation_cnss'] as const
-//     const docsNonVerifies = docsRequis.filter(key => {
-//       const file = documents[key]
-//       const verification = resultatsVerification[key]
-//       return file && !verification
-//     })
-    
-//     if (docsNonVerifies.length > 0) {
-//       const noms = docsNonVerifies.map(k => 
-//         DOCUMENTS_REQUIS.find(d => d.key === k)?.nom || k
-//       )
-//       details.push(`Documents en attente de vérification : ${noms.join(', ')}`)
-//       return { estValide: false, details }
-//     }
-    
 //     let tousValides = true
     
 //     for (const match of matches) {
 //       if (match.estMatch === null) {
-//         const docANom = DOCUMENTS_REQUIS.find(d => d.key === match.sourceDoc)?.nom || match.sourceDoc
-//         const docBNom = DOCUMENTS_REQUIS.find(d => d.key === match.cibleDoc)?.nom || match.cibleDoc
-        
-//         if (!match.valeurSource && !match.valeurCible) {
-//           details.push(`❌ ${match.champ} : Aucune valeur extraite de ${docANom} ni de ${docBNom}`)
-//         } else if (!match.valeurSource) {
-//           details.push(`❌ ${match.champ} : Valeur manquante dans ${docANom}`)
-//         } else if (!match.valeurCible) {
-//           details.push(`❌ ${match.champ} : Valeur manquante dans ${docBNom}`)
-//         }
 //         tousValides = false
 //       } else if (match.estMatch === false) {
-//         details.push(`❌ ${match.champ} : Incohérence détectée - "${match.valeurSource}" ≠ "${match.valeurCible}"`)
+//         details.push(`❌ ${match.champ} : Incohérence détectée`)
 //         tousValides = false
 //       } else {
 //         details.push(`✅ ${match.champ} : Correspondance validée`)
 //       }
 //     }
     
-//     if (tousValides) {
+//     if (tousValides && matches.every(m => m.estMatch === true)) {
 //       details.unshift('✅ Tous les croisements sont valides.')
 //     } else {
 //       details.unshift('⚠️ Des problèmes de cohérence ont été détectés :')
 //     }
     
 //     return { estValide: tousValides, details }
-//   }, [getMatchStatuses, documents, resultatsVerification])
+//   }, [getMatchStatuses])
 
 //   const validationCroisements = useMemo(() => {
 //     return getValidationCroisements()
@@ -382,7 +343,7 @@
 //       <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-4">
 //         <div className="flex items-start gap-3">
 //           <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
-//             <Sparkles className="h-5 w-5 text-indigo-600" />
+//             <FileText className="h-5 w-5 text-indigo-600" />
 //           </div>
 //           <div className="flex-1">
 //             <h3 className="text-sm font-semibold text-indigo-900 mb-1">
@@ -395,7 +356,7 @@
 //         </div>
 //       </div>
 
-//       {/* Bannière de statut des croisements - affiché seulement après vérification */}
+//       {/* Bannière de statut des croisements */}
 //       {documentsVerifies >= 2 && (
 //         <div className={`rounded-xl p-4 border ${
 //           conformite.estValide 
@@ -414,36 +375,16 @@
 //               {conformite.message}
 //             </span>
 //           </div>
-          
-//           <div className="space-y-1 mt-2">
-//             {detailsValidation.map((detail, idx) => (
-//               <p 
-//                 key={idx} 
-//                 className={`text-xs ${
-//                   detail.startsWith('✅') 
-//                     ? 'text-green-600' 
-//                     : detail.startsWith('⚠️') 
-//                       ? 'text-amber-600 font-medium' 
-//                       : 'text-red-600'
-//                 }`}
-//               >
-//                 {detail}
-//               </p>
-//             ))}
-//           </div>
 //         </div>
 //       )}
 
-//       {/* TABLEAU DE CROISEMENT - affiché seulement après vérification */}
+//       {/* TABLEAU DE CROISEMENT */}
 //       {documentsVerifies >= 2 && (
 //         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
 //           <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
 //             <h3 className="text-sm font-semibold text-gray-700">
 //               Résultat du Croisement des Données
 //             </h3>
-//             <p className="text-xs text-gray-500 mt-0.5">
-//               Vérification de la cohérence entre les documents
-//             </p>
 //           </div>
 //           <div className="overflow-x-auto">
 //             <table className="w-full text-sm">
@@ -547,7 +488,7 @@
 //         </div>
 //       </div>
 
-//       {/* Liste des documents - SIMPLIFIÉE : juste upload, pas de vérification manuelle */}
+//       {/* Liste des documents - État visuel uniquement */}
 //       <div className="space-y-3">
 //         {DOCUMENTS_REQUIS.map((doc) => {
 //           const file = documents[doc.key]
@@ -568,9 +509,9 @@
 //               bgColor = 'bg-green-50'
 //               statusIcon = <ShieldCheck className="h-5 w-5 text-green-500 flex-shrink-0" />
 //             } else {
-//               borderColor = 'border-yellow-200'
-//               bgColor = 'bg-yellow-50'
-//               statusIcon = <ShieldAlert className="h-5 w-5 text-yellow-500 flex-shrink-0" />
+//               borderColor = 'border-orange-200'
+//               bgColor = 'bg-orange-50'
+//               statusIcon = <ShieldAlert className="h-5 w-5 text-orange-500 flex-shrink-0" />
 //             }
 //           } else if (file) {
 //             borderColor = 'border-blue-200'
@@ -596,15 +537,6 @@
 //                           Obligatoire
 //                         </span>
 //                       )}
-//                       {verification && (
-//                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-//                           verification.estValide 
-//                             ? 'bg-green-100 text-green-700' 
-//                             : 'bg-yellow-100 text-yellow-700'
-//                         }`}>
-//                           Score: {verification.score}%
-//                         </span>
-//                       )}
 //                     </div>
 //                     <p className="text-xs text-gray-500 mt-0.5">{doc.description}</p>
                     
@@ -616,38 +548,6 @@
 //                       <div className="flex items-center gap-2 mt-1">
 //                         <p className="text-xs text-green-600 font-medium">{file.name}</p>
 //                         <p className="text-xs text-gray-400">({getFileSize(file)})</p>
-//                       </div>
-//                     )}
-
-//                     {/* Résultat vérification AI */}
-//                     {verification && (
-//                       <div className={`mt-2 p-2 rounded border ${
-//                         verification.estValide 
-//                           ? 'bg-green-50 border-green-200' 
-//                           : 'bg-yellow-50 border-yellow-200'
-//                       }`}>
-//                         {verification.champsExtraits && verification.champsExtraits.length > 0 && (
-//                           <div className="mb-1">
-//                             {verification.champsExtraits.map((champ: any, idx: number) => (
-//                               <div key={idx} className="flex items-center justify-between py-0.5 text-xs">
-//                                 <span className="text-gray-500 capitalize">{champ.nom.replace(/_/g, ' ')} :</span>
-//                                 <span className={`font-medium ${champ.valeur ? 'text-gray-800' : 'text-red-400 italic'}`}>
-//                                   {champ.valeur || 'Non extrait'}
-//                                 </span>
-//                               </div>
-//                             ))}
-//                           </div>
-//                         )}
-                        
-//                         {verification.champsManquants && verification.champsManquants.length > 0 && (
-//                           <div className="mb-1">
-//                             <p className="text-xs text-red-600 font-medium">
-//                               ⚠️ Champs manquants : {verification.champsManquants.join(', ')}
-//                             </p>
-//                           </div>
-//                         )}
-                        
-//                         <p className="text-xs text-gray-500 italic mt-1">{verification.commentaire}</p>
 //                       </div>
 //                     )}
 //                   </div>
@@ -751,7 +651,7 @@
 //   )
 // }
 
-// Step4Documents.tsx - VERSION SIMPLIFIÉE
+// Step4Documents.tsx - CORRECTION BOUCLE INFINIE
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
@@ -830,7 +730,6 @@ type Props = {
   resultatsExternes?: Record<string, VerificationResult | null>
 }
 
-// Fonctions de comparaison
 const normaliserPourComparaison = (texte: string): string => {
   if (!texte) return ''
   return texte
@@ -949,20 +848,33 @@ export default function Step4Documents({
 }: Props) {
   const [previewDoc, setPreviewDoc] = useState<{ key: keyof DocumentsFPI; url: string } | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [previewUrls, setPreviewUrls] = useState<Set<string>>(new Set())
 
   const resultatsVerification = resultatsExternes || {}
 
+  // Nettoyer les URLs d'aperçu au démontage
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach(url => {
+        try { URL.revokeObjectURL(url) } catch (e) { /* ignore */ }
+      })
+    }
+  }, [previewUrls])
+
   const handleFileChange = (key: keyof DocumentsFPI, file: File | undefined) => {
-    if (file) {
-      const validation = validateDocumentFile(file)
-      if (!validation.valid) {
-        setErrors(prev => ({ ...prev, [key]: validation.message || 'Fichier invalide' }))
-        return
-      }
+    if (!file) {
+      setErrors(prev => ({ ...prev, [key]: '' }))
+      return
+    }
+
+    const validation = validateDocumentFile(file)
+    if (!validation.valid) {
+      setErrors(prev => ({ ...prev, [key]: validation.message || 'Fichier invalide' }))
+      return
     }
     
     setErrors(prev => ({ ...prev, [key]: '' }))
-    onChange({ ...documents, [key]: file || null })
+    onChange({ ...documents, [key]: file })
   }
 
   const handleRemove = (key: keyof DocumentsFPI) => {
@@ -974,8 +886,25 @@ export default function Step4Documents({
     const file = documents[key]
     if (file) {
       const url = URL.createObjectURL(file)
+      setPreviewUrls(prev => {
+        const newSet = new Set(prev)
+        newSet.add(url)
+        return newSet
+      })
       setPreviewDoc({ key, url })
     }
+  }
+
+  const closePreview = () => {
+    if (previewDoc?.url) {
+      try { URL.revokeObjectURL(previewDoc.url) } catch (e) { /* ignore */ }
+      setPreviewUrls(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(previewDoc.url)
+        return newSet
+      })
+    }
+    setPreviewDoc(null)
   }
 
   const getFileSize = (file: File) => {
@@ -1031,27 +960,39 @@ export default function Step4Documents({
     return { estValide: tousValides, details }
   }, [getMatchStatuses])
 
+  // CORRECTION : Utiliser useMemo + useRef pour éviter la boucle infinie
   const validationCroisements = useMemo(() => {
     return getValidationCroisements()
   }, [getValidationCroisements])
 
+  // CORRECTION : Ref pour comparer la valeur précédente et éviter les appels inutiles
   const prevValidationRef = useRef<string>('')
 
+  // CORRECTION : useEffect qui ne s'exécute que si la valeur a VRAIMENT changé
   useEffect(() => {
-    if (onCroisementValidityChange) {
-      const currentValidation = JSON.stringify({
-        estValide: validationCroisements.estValide,
-        details: validationCroisements.details
-      })
-      
-      if (currentValidation !== prevValidationRef.current) {
-        prevValidationRef.current = currentValidation
-        onCroisementValidityChange(
-          validationCroisements.estValide, 
-          validationCroisements.details
-        )
-      }
+    if (!onCroisementValidityChange) return
+
+    const currentValidation = JSON.stringify({
+      estValide: validationCroisements.estValide,
+      details: validationCroisements.details
+    })
+
+    // Ne pas appeler le callback si la valeur est identique à la précédente
+    if (currentValidation === prevValidationRef.current) {
+      return
     }
+
+    prevValidationRef.current = currentValidation
+
+    console.log('📤 [Step4Documents] Envoi au parent:', {
+      estValide: validationCroisements.estValide,
+      details: validationCroisements.details
+    })
+
+    onCroisementValidityChange(
+      validationCroisements.estValide, 
+      validationCroisements.details
+    )
   }, [validationCroisements, onCroisementValidityChange])
 
   const getConformiteGlobale = useCallback(() => {
@@ -1087,7 +1028,6 @@ export default function Step4Documents({
   
   const conformite = useMemo(() => getConformiteGlobale(), [getConformiteGlobale])
   const matchStatuses = useMemo(() => getMatchStatuses(), [getMatchStatuses])
-  const detailsValidation = validationCroisements.details
 
   return (
     <div className="space-y-6">
@@ -1363,7 +1303,7 @@ export default function Step4Documents({
       {previewDoc && (
         <div
           className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
-          onClick={() => setPreviewDoc(null)}
+          onClick={closePreview}
         >
           <div 
             className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
@@ -1374,7 +1314,7 @@ export default function Step4Documents({
                 Aperçu: {DOCUMENTS_REQUIS.find(d => d.key === previewDoc.key)?.nom}
               </h4>
               <button
-                onClick={() => setPreviewDoc(null)}
+                onClick={closePreview}
                 className="p-1 hover:bg-gray-100 rounded-lg"
               >
                 ✕

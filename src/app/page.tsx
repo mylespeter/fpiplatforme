@@ -34,11 +34,11 @@ export default function HomePage() {
     <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="text-center px-4">
         <h1 className="text-4xl font- text-gray-900 mb-4">
-       SMART HOTEL
+       FPI
         </h1>
         <img src='/logo.png' className='mx-auto my-3 w-[250px]'/>
         <p className="text-gray-500 mb-8 max-w-md">
-         Gestion de l'hotel via l'IoT
+         Platform FPI pour demande de financement et suivi des projets. Vous pouvez accéder à votre dashboard pour gérer vos projets et consulter les informations pertinentes.
         </p>
         <Link
           href="/dashboard"
