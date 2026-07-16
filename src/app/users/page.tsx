@@ -577,12 +577,7 @@ export default function AdminUsersPage() {
                         <ArrowUpDown className="h-3 w-3" />
                       </button>
                     </th>
-                    <th className="text-left p-4 text-xs font-semibold text-gray-600">
-                      <button onClick={() => handleSort('projets_count')} className="flex items-center gap-1 hover:text-gray-900">
-                        Projets
-                        <ArrowUpDown className="h-3 w-3" />
-                      </button>
-                    </th>
+                  
                     <th className="text-left p-4 text-xs font-semibold text-gray-600">
                       <button onClick={() => handleSort('created_at')} className="flex items-center gap-1 hover:text-gray-900">
                         Inscription
@@ -636,10 +631,7 @@ export default function AdminUsersPage() {
                               {roleConfig?.label}
                             </span>
                           </td>
-                          <td className="p-4">
-                            <span className="text-sm font-semibold text-gray-900">{user.projets_count}</span>
-                            <span className="text-xs text-gray-500 ml-1">projet{user.projets_count !== 1 ? 's' : ''}</span>
-                          </td>
+                         
                           <td className="p-4">
                             <div className="flex items-center gap-2">
                               <Calendar className="h-3 w-3 text-gray-400" />

@@ -932,7 +932,7 @@ export default function PromoteurProjetsPage() {
                   className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold xl hover:bg-primary/90  shadow-primary/25 hover:shadow-primary/40 transition-all transform hover:scale-105 active:scale-95"
                 >
                   <Folder className="h-4 w-4" /> 
-                  <span className="hidden sm:inline">Formulaire FPI</span>
+                  <span className="hidden sm:inline">Nouvelle demande</span>
                 </button>
               </div>
             </div>
@@ -1054,14 +1054,14 @@ export default function PromoteurProjetsPage() {
             <p className="text-gray-500 mb-6 max-w-md mx-auto">
               {searchTerm || filterStatus !== 'all' 
                 ? 'Aucun projet ne correspond à vos critères de recherche. Essayez de modifier vos filtres.'
-                : 'Commencez par créer votre premier projet de financement'}
+                : 'Commencez par faire une nouvelle demande de financement'}
             </p>
             {!searchTerm && filterStatus === 'all' && (
               <button 
                 onClick={() => setShowFormulaireFPI(true)}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all transform hover:scale-105"
               >
-                <Plus className="h-5 w-5" /> Créer un projet FPI
+                <Plus className="h-5 w-5" /> Faire une demande
               </button>
             )}
           </div>
