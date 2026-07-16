@@ -628,7 +628,197 @@ export default function ServiceTechniquePage() {
   const handleCommentaireChange = (critere: string, commentaire: string) => {
     setCommentaires((prev: Record<string, string>) => ({ ...prev, [critere]: commentaire }))
   }
+const soumettreRapport = async (rapportData: {
+  projet_id?: number;
+  dossier_complet: boolean | null;
+  documents_manquants: string | null;
+  notes: Record<string, number>;
+  commentaires: Record<string, string>;
+  decision: string;
+  commentaire_global: string;
+  recommandations: string;
+}) => {
+  if (!selectedProjet || userId === null) return
 
+  setSaving(true)
+  setError('')
+
+  try {
+    // ==========================================
+    // 1. SAUVEGARDE DU RAPPORT D'ANALYSE
+    // ==========================================
+    const dataToSave = {
+      projet_id: selectedProjet.id,
+      technicien_id: userId,
+      dossier_complet: rapportData.dossier_complet,
+      documents_manquants: rapportData.dossier_complet ? null : rapportData.documents_manquants,
+      date_verification: new Date().toISOString(),
+      note_faisabilite: rapportData.notes.faisabilite || null,
+      note_impact: rapportData.notes.impact || null,
+      note_finance: rapportData.notes.finance || null,
+      note_equipe: rapportData.notes.equipe || null,
+      note_marche: rapportData.notes.marche || null,
+      commentaire_faisabilite: rapportData.commentaires.faisabilite || null,
+      commentaire_impact: rapportData.commentaires.impact || null,
+      commentaire_finance: rapportData.commentaires.finance || null,
+      commentaire_equipe: rapportData.commentaires.equipe || null,
+      commentaire_marche: rapportData.commentaires.marche || null,
+      decision: rapportData.decision,
+      commentaire_global: rapportData.commentaire_global,
+      recommandations: rapportData.recommandations || null,
+      date_decision: new Date().toISOString(),
+      statut: 'transmis',
+      updated_at: new Date().toISOString()
+    }
+
+    const { data: existingRapport } = await supabase
+      .from('rapport_analyse')
+      .select('id')
+      .eq('projet_id', selectedProjet.id)
+      .maybeSingle()
+
+    if (existingRapport) {
+      const { error } = await supabase
+        .from('rapport_analyse')
+        .update(dataToSave)
+        .eq('id', existingRapport.id)
+      
+      if (error) throw error
+    } else {
+      const { error } = await supabase
+        .from('rapport_analyse')
+        .insert(dataToSave)
+      
+      if (error) throw error
+    }
+
+    // ==========================================
+    // 2. CHANGEMENT D'ÉTAPE → COMITÉ_CRÉDIT
+    // ==========================================
+    await supabase
+      .from('projets_fpi')
+      .update({ 
+        etape: 'comité_crédit', 
+        updated_at: new Date().toISOString() 
+      })
+      .eq('id', selectedProjet.id)
+
+    // ==========================================
+    // 🆕 3. NOTIFIER TOUS LES MEMBRES DU COMITÉ
+    // ==========================================
+    try {
+      // Récupérer tous les utilisateurs avec le rôle "credit"
+      const { data: membresComite, error: comiteError } = await supabase
+        .from('users')
+        .select('id, username, email')
+        .eq('role', 'credit')
+
+      if (comiteError) {
+        console.error('❌ Erreur récupération membres comité:', comiteError)
+      } else if (membresComite && membresComite.length > 0) {
+        console.log(`📋 ${membresComite.length} membres du comité trouvés`)
+
+        const montantStr = selectedProjet.montant_sollicite 
+          ? formatMontant(selectedProjet.montant_sollicite) 
+          : ''
+
+        let successCount = 0
+        let pushCount = 0
+        
+        for (const membre of membresComite) {
+          // 3a. Notification en base de données
+          const { error: notifError } = await supabase
+            .from('notifications')
+            .insert({
+              user_id: membre.id,
+              type: 'info',
+              titre: '📋 Nouveau dossier à examiner',
+              message: `Le projet "${selectedProjet.nom_projet}" ${montantStr ? `(${montantStr}) ` : ''}a été transmis par le service technique pour décision du comité de crédit.`,
+              lien: '/dashboard/comite',
+              projet_id: selectedProjet.id,
+              icone: 'FileText',
+              est_lue: false
+            })
+
+          if (!notifError) {
+            successCount++
+          }
+
+          // 3b. Notification push
+          try {
+            const response = await fetch('/api/push/send', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-user-id': membre.id.toString()
+              },
+              body: JSON.stringify({
+                userId: membre.id.toString(),
+                notification: {
+                  title: '📋 Nouveau dossier à examiner',
+                  body: `Projet "${selectedProjet.nom_projet}" - ${rapportData.decision === 'favorable' ? 'Avis favorable' : rapportData.decision === 'defavorable' ? 'Avis défavorable' : 'Avis réservé'}`,
+                  url: '/dashboard/comite',
+                  type: 'info',
+                  projetId: selectedProjet.id,
+                  requireInteraction: true,
+                  vibrate: [200, 100, 200]
+                }
+              })
+            })
+
+            if (response.ok) {
+              pushCount++
+            }
+          } catch (pushError) {
+            // Push facultatif, on continue
+          }
+        }
+
+        console.log(`✅ ${successCount} notifications BD créées pour les membres du comité`)
+        console.log(`📱 ${pushCount} push notifications envoyées`)
+      } else {
+        console.warn('⚠️ Aucun membre du comité trouvé (role=credit) dans la table users')
+      }
+    } catch (err) {
+      console.error('❌ Erreur notification comité:', err)
+      // On ne bloque PAS la transmission si les notifications échouent
+    }
+
+    // ==========================================
+    // 4. NOTIFIER LE PROMOTEUR
+    // ==========================================
+    const decisionMessage = rapportData.decision === 'favorable' 
+      ? '✅ Votre projet a reçu un avis FAVORABLE du service technique. Il va maintenant être examiné par le comité de crédit.'
+      : rapportData.decision === 'defavorable'
+      ? '❌ Votre projet a reçu un avis DÉFAVORABLE du service technique. Veuillez consulter le rapport pour plus de détails.'
+      : '⏸️ Votre projet a reçu un avis RÉSERVÉ du service technique. Des informations complémentaires sont nécessaires.'
+
+    await envoyerNotificationPush(
+      selectedProjet.promoteur_id,
+      `📋 Décision technique - ${selectedProjet.nom_projet}`,
+      decisionMessage,
+      'decision',
+      selectedProjet.id,
+      '/dashboard'
+    )
+
+    // ==========================================
+    // 5. SUCCÈS
+    // ==========================================
+    setSuccess('✅ Rapport transmis avec succès ! Les membres du comité ont été notifiés.')
+    
+    setTimeout(() => {
+      setShowRapportModal(false)
+      chargerProjets()
+    }, 2000)
+
+  } catch (err: any) {
+    console.error('Erreur:', err)
+    setError(err.message || 'Erreur lors de la transmission')
+  } finally {
+    setSaving(false)
+  }
+}
   // const soumettreRapport = async (rapportData: {
   //   projet_id?: number;
   //   dossier_complet: boolean | null;
@@ -724,157 +914,157 @@ export default function ServiceTechniquePage() {
   //     setSaving(false)
   //   }
   // }
-const soumettreRapport = async (rapportData: {
-  projet_id?: number;
-  dossier_complet: boolean | null;
-  documents_manquants: string | null;
-  notes: Record<string, number>;
-  commentaires: Record<string, string>;
-  decision: string;
-  commentaire_global: string;
-  recommandations: string;
-}) => {
-  if (!selectedProjet || userId === null) return
+// const soumettreRapport = async (rapportData: {
+//   projet_id?: number;
+//   dossier_complet: boolean | null;
+//   documents_manquants: string | null;
+//   notes: Record<string, number>;
+//   commentaires: Record<string, string>;
+//   decision: string;
+//   commentaire_global: string;
+//   recommandations: string;
+// }) => {
+//   if (!selectedProjet || userId === null) return
 
-  setSaving(true)
-  setError('')
+//   setSaving(true)
+//   setError('')
 
-  try {
-    // ==========================================
-    // 1. SAUVEGARDE DU RAPPORT D'ANALYSE
-    // ==========================================
-    const dataToSave = {
-      projet_id: selectedProjet.id,
-      technicien_id: userId,
-      dossier_complet: rapportData.dossier_complet,
-      documents_manquants: rapportData.dossier_complet ? null : rapportData.documents_manquants,
-      date_verification: new Date().toISOString(),
-      note_faisabilite: rapportData.notes.faisabilite || null,
-      note_impact: rapportData.notes.impact || null,
-      note_finance: rapportData.notes.finance || null,
-      note_equipe: rapportData.notes.equipe || null,
-      note_marche: rapportData.notes.marche || null,
-      commentaire_faisabilite: rapportData.commentaires.faisabilite || null,
-      commentaire_impact: rapportData.commentaires.impact || null,
-      commentaire_finance: rapportData.commentaires.finance || null,
-      commentaire_equipe: rapportData.commentaires.equipe || null,
-      commentaire_marche: rapportData.commentaires.marche || null,
-      decision: rapportData.decision,
-      commentaire_global: rapportData.commentaire_global,
-      recommandations: rapportData.recommandations || null,
-      date_decision: new Date().toISOString(),
-      statut: 'transmis',
-      updated_at: new Date().toISOString()
-    }
+//   try {
+//     // ==========================================
+//     // 1. SAUVEGARDE DU RAPPORT D'ANALYSE
+//     // ==========================================
+//     const dataToSave = {
+//       projet_id: selectedProjet.id,
+//       technicien_id: userId,
+//       dossier_complet: rapportData.dossier_complet,
+//       documents_manquants: rapportData.dossier_complet ? null : rapportData.documents_manquants,
+//       date_verification: new Date().toISOString(),
+//       note_faisabilite: rapportData.notes.faisabilite || null,
+//       note_impact: rapportData.notes.impact || null,
+//       note_finance: rapportData.notes.finance || null,
+//       note_equipe: rapportData.notes.equipe || null,
+//       note_marche: rapportData.notes.marche || null,
+//       commentaire_faisabilite: rapportData.commentaires.faisabilite || null,
+//       commentaire_impact: rapportData.commentaires.impact || null,
+//       commentaire_finance: rapportData.commentaires.finance || null,
+//       commentaire_equipe: rapportData.commentaires.equipe || null,
+//       commentaire_marche: rapportData.commentaires.marche || null,
+//       decision: rapportData.decision,
+//       commentaire_global: rapportData.commentaire_global,
+//       recommandations: rapportData.recommandations || null,
+//       date_decision: new Date().toISOString(),
+//       statut: 'transmis',
+//       updated_at: new Date().toISOString()
+//     }
 
-    const { data: existingRapport } = await supabase
-      .from('rapport_analyse')
-      .select('id')
-      .eq('projet_id', selectedProjet.id)
-      .maybeSingle()
+//     const { data: existingRapport } = await supabase
+//       .from('rapport_analyse')
+//       .select('id')
+//       .eq('projet_id', selectedProjet.id)
+//       .maybeSingle()
 
-    if (existingRapport) {
-      const { error } = await supabase
-        .from('rapport_analyse')
-        .update(dataToSave)
-        .eq('id', existingRapport.id)
+//     if (existingRapport) {
+//       const { error } = await supabase
+//         .from('rapport_analyse')
+//         .update(dataToSave)
+//         .eq('id', existingRapport.id)
       
-      if (error) throw error
-    } else {
-      const { error } = await supabase
-        .from('rapport_analyse')
-        .insert(dataToSave)
+//       if (error) throw error
+//     } else {
+//       const { error } = await supabase
+//         .from('rapport_analyse')
+//         .insert(dataToSave)
       
-      if (error) throw error
-    }
+//       if (error) throw error
+//     }
 
-    // ==========================================
-    // 2. CHANGEMENT D'ÉTAPE → COMITÉ_CRÉDIT
-    // ==========================================
-    await supabase
-      .from('projets_fpi')
-      .update({ 
-        etape: 'comité_crédit', 
-        updated_at: new Date().toISOString() 
-      })
-      .eq('id', selectedProjet.id)
+//     // ==========================================
+//     // 2. CHANGEMENT D'ÉTAPE → COMITÉ_CRÉDIT
+//     // ==========================================
+//     await supabase
+//       .from('projets_fpi')
+//       .update({ 
+//         etape: 'comité_crédit', 
+//         updated_at: new Date().toISOString() 
+//       })
+//       .eq('id', selectedProjet.id)
 
-    // ==========================================
-    // 🆕 3. NOTIFIER TOUS LES MEMBRES DU COMITÉ
-    // ==========================================
-    try {
-      // Récupérer tous les utilisateurs avec le rôle "comite"
-      const { data: membresComite } = await supabase
-        .from('users')
-        .select('id, username, email')
-        .eq('role', 'credit')
+//     // ==========================================
+//     // 🆕 3. NOTIFIER TOUS LES MEMBRES DU COMITÉ
+//     // ==========================================
+//     try {
+//       // Récupérer tous les utilisateurs avec le rôle "comite"
+//       const { data: membresComite } = await supabase
+//         .from('users')
+//         .select('id, username, email')
+//         .eq('role', 'credit')
 
-      if (membresComite && membresComite.length > 0) {
-        const montantStr = selectedProjet.montant_sollicite 
-          ? formatMontant(selectedProjet.montant_sollicite) 
-          : ''
+//       if (membresComite && membresComite.length > 0) {
+//         const montantStr = selectedProjet.montant_sollicite 
+//           ? formatMontant(selectedProjet.montant_sollicite) 
+//           : ''
 
-        let successCount = 0
+//         let successCount = 0
         
-        for (const membre of membresComite) {
-          const envoye = await envoyerNotificationPush(
-            membre.id,
-            '📋 Nouveau dossier à examiner',
-            `Le projet "${selectedProjet.nom_projet}" ${montantStr ? `(${montantStr}) ` : ''}a été transmis par le service technique pour décision du comité de crédit.`,
-            'info',
-            selectedProjet.id,
-            '/dashboard/comite'
-          )
+//         for (const membre of membresComite) {
+//           const envoye = await envoyerNotificationPush(
+//             membre.id,
+//             '📋 Nouveau dossier à examiner',
+//             `Le projet "${selectedProjet.nom_projet}" ${montantStr ? `(${montantStr}) ` : ''}a été transmis par le service technique pour décision du comité de crédit.`,
+//             'info',
+//             selectedProjet.id,
+//             '/dashboard/comite'
+//           )
 
-          if (envoye) {
-            successCount++
-          }
-        }
+//           if (envoye) {
+//             successCount++
+//           }
+//         }
         
-        console.log(`✅ ${successCount}/${membresComite.length} membres du comité notifiés`)
-      } else {
-        console.log('⚠️ Aucun membre du comité trouvé (role=comite) dans la table users')
-      }
-    } catch (err) {
-      // On ne bloque pas la transmission si les notifications échouent
-      console.error('❌ Erreur lors de la notification des membres du comité:', err)
-    }
+//         console.log(`✅ ${successCount}/${membresComite.length} membres du comité notifiés`)
+//       } else {
+//         console.log('⚠️ Aucun membre du comité trouvé (role=comite) dans la table users')
+//       }
+//     } catch (err) {
+//       // On ne bloque pas la transmission si les notifications échouent
+//       console.error('❌ Erreur lors de la notification des membres du comité:', err)
+//     }
 
-    // ==========================================
-    // 4. NOTIFIER LE PROMOTEUR
-    // ==========================================
-    const decisionMessage = rapportData.decision === 'favorable' 
-      ? '✅ Votre projet a reçu un avis FAVORABLE du service technique. Il va maintenant être examiné par le comité de crédit.'
-      : rapportData.decision === 'defavorable'
-      ? '❌ Votre projet a reçu un avis DÉFAVORABLE du service technique. Veuillez consulter le rapport pour plus de détails.'
-      : '⏸️ Votre projet a reçu un avis RÉSERVÉ du service technique. Des informations complémentaires sont nécessaires.'
+//     // ==========================================
+//     // 4. NOTIFIER LE PROMOTEUR
+//     // ==========================================
+//     const decisionMessage = rapportData.decision === 'favorable' 
+//       ? '✅ Votre projet a reçu un avis FAVORABLE du service technique. Il va maintenant être examiné par le comité de crédit.'
+//       : rapportData.decision === 'defavorable'
+//       ? '❌ Votre projet a reçu un avis DÉFAVORABLE du service technique. Veuillez consulter le rapport pour plus de détails.'
+//       : '⏸️ Votre projet a reçu un avis RÉSERVÉ du service technique. Des informations complémentaires sont nécessaires.'
 
-    await envoyerNotificationPush(
-      selectedProjet.promoteur_id,
-      `📋 Décision technique - ${selectedProjet.nom_projet}`,
-      decisionMessage,
-      'decision',
-      selectedProjet.id,
-      '/dashboard'
-    )
+//     await envoyerNotificationPush(
+//       selectedProjet.promoteur_id,
+//       `📋 Décision technique - ${selectedProjet.nom_projet}`,
+//       decisionMessage,
+//       'decision',
+//       selectedProjet.id,
+//       '/dashboard'
+//     )
 
-    // ==========================================
-    // 5. SUCCÈS
-    // ==========================================
-    setSuccess('✅ Rapport transmis avec succès !')
+//     // ==========================================
+//     // 5. SUCCÈS
+//     // ==========================================
+//     setSuccess('✅ Rapport transmis avec succès !')
     
-    setTimeout(() => {
-      setShowRapportModal(false)
-      chargerProjets()
-    }, 2000)
+//     setTimeout(() => {
+//       setShowRapportModal(false)
+//       chargerProjets()
+//     }, 2000)
 
-  } catch (err: any) {
-    console.error('Erreur:', err)
-    setError(err.message || 'Erreur lors de la transmission')
-  } finally {
-    setSaving(false)
-  }
-}
+//   } catch (err: any) {
+//     console.error('Erreur:', err)
+//     setError(err.message || 'Erreur lors de la transmission')
+//   } finally {
+//     setSaving(false)
+//   }
+// }
   const telechargerPDF = async () => {
     if (!selectedProjet) return;
     
@@ -985,13 +1175,13 @@ const soumettreRapport = async (rapportData: {
         <div className="max-w-6xl mx-auto">
           {projetsFiltres.length === 0 && (
             <div className="text-center py-16 bg-white rounded-xl">
-              <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              {/* <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" /> */}
               <p className="text-gray-500">
                 {searchTerm 
                   ? `Aucun projet ne correspond à "${searchTerm}"`
                   : activeTab === 'mes_consultations' 
                     ? 'Vous n\'avez pas encore de dossier en cours'
-                    : 'Aucun dossier à consulter'}
+                    : ''}
               </p>
             </div>
           )}
