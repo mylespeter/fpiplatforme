@@ -910,6 +910,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import PushNotificationButton from './PushNotificationButton';
 
 // Contexte pour partager l'état de la sidebar
 export const SidebarContext = createContext<{
@@ -1131,6 +1132,8 @@ export default function Sidebar() {
               </div>
             )}
           </div>
+              <PushNotificationButton />
+
         </div>
 
         {/* Navigation */}

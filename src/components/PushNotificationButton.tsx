@@ -39,7 +39,7 @@ export default function PushNotificationButton() {
         onClick={handleClick}
         disabled={loading}
         className={`
-          relative p-2 rounded-lg transition-all duration-200
+          relative p-2 rounded-lg mt-2 transition-all duration-200
           ${isSubscribed 
             ? 'bg-green-100 text-green-600 hover:bg-green-200' 
             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

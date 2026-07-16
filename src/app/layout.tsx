@@ -27,7 +27,6 @@ export default function RootLayout({
         <AuthProvider>
               <PushNotificationProvider>
 
-    {/* <PushNotificationButton /> */}
           <main>{children}</main>
             <ToastContainer />
               </PushNotificationProvider>
